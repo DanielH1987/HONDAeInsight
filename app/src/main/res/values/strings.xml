@@ -1,0 +1,38 @@
+<resources>
+    <string name="app_name">e Insight</string>
+    <string name="messages">Messages:</string>
+    <string name="message">Message</string>
+    <string name="send">Send</string>
+    <string name="paired_devices">Paired devices:</string>
+    <string name="no_messages">No messages sent!</string>
+    <string name="no_bluetooth">Bluetooth not available.</string>
+    <string name="device_name_format">Device: %1$s</string>
+    <string name="status_connecting">Status: Connecting</string>
+    <string name="status_connected">Status: Connected</string>
+    <string name="status_disconnected">Status: Disconnected</string>
+    <string name="stop">Stop</string>
+    <string name="connect">Connect</string>
+    <string name="connected">Connected</string>
+    <string name="disconnect">Disconnect</string>
+    <string name="connection_failed">Connection Failed.</string>
+    <string name="bluetooth_unavailable">Connection Failed.</string>
+    <string name="message_send_error">Error sending message!</string>
+    <string name="you_sent">You</string>
+
+    <string name="vin">VIN</string>
+    <string name="speed">Speed</string>
+    <string name="location">Location</string>
+    <string name="soc_min_max">SoC (min / max)</string>
+    <string name="soc_dash">SoC (dash)</string>
+    <string name="charging">Charging</string>
+    <string name="nc">NC</string>
+    <string name="soh">SoH</string>
+    <string name="odo">ODO</string>
+    <string name="stats">Stats</string>
+    <string name="bat_temp">Battery Temp</string>
+    <string name="amb_temp">Ambient Temp</string>
+    <string name="aux_bat">Aux Battery</string>
+    <string name="range">Range</string>
+    <string name="send_data">Send Data to ABRP API</string>
+
+</resources>
