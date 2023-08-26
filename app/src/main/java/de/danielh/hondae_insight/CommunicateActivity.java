@@ -39,6 +39,7 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
 
     public static final int CAN_BUS_SCAN_INTERVALL = 5000;
     public static final int WAIT_FOR_NEW_MESSAGE_TIMEOUT = 1000;
+    public static final int WAIT_TIME_BETWEEN_COMMAND_SENDS_MS = 50;
     public static String VIN_ID = "1862F190";
     public static String AMBIENT_ID = "39627028";
     public static String SOH_ID = "F6622021";
@@ -217,7 +218,7 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
                         _viewModel.setNewMessageProcessed();
                     }
                 }
-                Thread.sleep(20);
+                Thread.sleep(WAIT_TIME_BETWEEN_COMMAND_SENDS_MS);
             }
         } catch (InterruptedException e) {
             //Log.d("STATE", e.getMessage());
@@ -320,7 +321,7 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
                             _viewModel.setNewMessageProcessed();
                         }
                     }
-                    Thread.sleep(50);
+                    Thread.sleep(WAIT_TIME_BETWEEN_COMMAND_SENDS_MS);
                 }
 
                 setText(_speedText, _speed + "km/h");
