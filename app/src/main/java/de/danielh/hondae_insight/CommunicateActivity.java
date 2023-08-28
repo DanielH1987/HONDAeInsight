@@ -69,7 +69,7 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
             "ATSHDA07F1",
             "ATFCSH18DA07F1",
             "ATCRA18DAF107",
-            "22F190"
+            "22F190" //VIN
     ));
 
     private final ArrayList<String> _loopCommands = new ArrayList<>(Arrays.asList(
