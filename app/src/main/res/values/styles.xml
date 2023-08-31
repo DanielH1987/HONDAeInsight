@@ -7,6 +7,7 @@
         <item name="android:textColor">@color/colorText</item>
         <item name="editTextColor">@color/colorText</item>
         <item name="android:textColorPrimary">@color/colorText</item>
+        <item name="android:background">@color/colorBg</item>
     </style>
 
 </resources>
