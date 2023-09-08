@@ -21,8 +21,9 @@
 
     <string name="vin">VIN</string>
     <string name="speed">Speed</string>
+    <string name="height">Height</string>
     <string name="location">Location</string>
-    <string name="soc_min_max">SoC (min / max)</string>
+    <string name="soc_min_max_delta">SoC (min / max / Δ)</string>
     <string name="soc_dash">SoC (dash)</string>
     <string name="charging">Charging</string>
     <string name="nc">NC</string>
@@ -32,7 +33,7 @@
     <string name="bat_temp">Battery Temp</string>
     <string name="amb_temp">Ambient Temp</string>
     <string name="aux_bat">Aux Battery</string>
-    <string name="range">Range</string>
+    <string name="range">Range (dash / min / max)</string>
     <string name="send_data">Send Data to ABRP API</string>
 
 </resources>

@@ -59,6 +59,11 @@
                     android:layout_height="match_parent"
                     android:orientation="horizontal">
 
+                    <Space
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1" />
+
                     <TextView
                         android:id="@+id/text_range"
                         android:layout_width="wrap_content"
@@ -66,15 +71,11 @@
                         android:text="@string/range"
                         android:textAppearance="@style/TextAppearance.AppCompat.Large" />
 
-                    <TextView
-                        android:id="@+id/communicate_range"
-                        android:layout_width="0dp"
+                    <Space
+                        android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:text="000km / 000km / 000km"
-                        android:textAlignment="textEnd"
-                        android:textAppearance="@style/TextAppearance.AppCompat.Large"
-                        android:textStyle="bold" />
+                        android:layout_weight="1" />
+
                 </LinearLayout>
 
                 <LinearLayout
@@ -82,21 +83,68 @@
                     android:layout_height="match_parent"
                     android:orientation="horizontal">
 
+                    <Space
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1" />
+
+                    <TextView
+                        android:id="@+id/communicate_range"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="000km / 000km / 000km"
+                        android:textAppearance="@style/TextAppearance.AppCompat.Large"
+                        android:textStyle="bold" />
+
+                    <Space
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1" />
+                </LinearLayout>
+
+                <Space
+                    android:layout_width="match_parent"
+                    android:layout_height="9dp" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:orientation="horizontal">
+
+                    <Space
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1" />
+
                     <TextView
                         android:id="@+id/text_soc_min_max"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_weight="10"
-                        android:text="@string/soc_min_max"
+                        android:text="@string/soc_min_max_delta"
                         android:textAppearance="@style/TextAppearance.AppCompat.Large" />
+
+                    <Space
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1" />
+
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:orientation="horizontal">
+
+                    <Space
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1" />
 
                     <TextView
                         android:id="@+id/communicate_soc_min"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_weight="1"
                         android:text="00.00%"
-                        android:textAlignment="textEnd"
                         android:textAppearance="@style/TextAppearance.AppCompat.Large"
                         android:textStyle="bold" />
 
@@ -104,8 +152,7 @@
                         android:id="@+id/text_soc_delimiter"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text=" / "
-                        android:textAlignment="center"
+                        android:text=" / "
                         android:textAppearance="@style/TextAppearance.AppCompat.Large"
                         android:textStyle="bold" />
 
@@ -113,12 +160,35 @@
                         android:id="@+id/communicate_soc_max"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_weight="1"
                         android:text="00.00%"
-                        android:textAlignment="textStart"
                         android:textAppearance="@style/TextAppearance.AppCompat.Large"
                         android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/text_soc_delimiter_delta"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text=" / "
+                        android:textAppearance="@style/TextAppearance.AppCompat.Large"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/communicate_soc_delta"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="0.00%"
+                        android:textAppearance="@style/TextAppearance.AppCompat.Large"
+                        android:textStyle="bold" />
+
+                    <Space
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1" />
                 </LinearLayout>
+
+                <Space
+                    android:layout_width="match_parent"
+                    android:layout_height="9dp" />
 
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -425,44 +495,38 @@
                 android:layout_width="match_parent"
                 android:layout_height="24dp" />
 
+            <EditText
+                android:id="@+id/communicate_abrp_user_token"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:layout_weight="0"
+                android:autofillHints=""
+                android:inputType="text"
+                android:textAlignment="center" />
+
             <LinearLayout
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical">
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:orientation="horizontal">
 
-                <EditText
-                    android:id="@+id/communicate_abrp_user_token"
-                    android:layout_width="match_parent"
-                    android:layout_height="48dp"
-                    android:layout_weight="0"
-                    android:inputType="text"
-                    android:textAlignment="center" />
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent"
+                <TextView
+                    android:id="@+id/text_send_data"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:orientation="horizontal">
+                    android:text="@string/send_data"
+                    android:textAlignment="textEnd"
+                    android:textAppearance="@style/TextAppearance.AppCompat.Large" />
 
-                    <TextView
-                        android:id="@+id/text_send_data"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:text="@string/send_data"
-                        android:textAlignment="textEnd"
-                        android:textAppearance="@style/TextAppearance.AppCompat.Large" />
-
-                    <Switch
-                        android:id="@+id/communicate_iternio_send_to_api"
-                        android:layout_width="48dp"
-                        android:layout_height="48dp"
-                        android:layout_weight="0"
-                        android:textAlignment="textEnd"
-                        android:textAppearance="@style/TextAppearance.AppCompat.Large" />
-                </LinearLayout>
-
+                <Switch
+                    android:id="@+id/communicate_iternio_send_to_api"
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
+                    android:textAlignment="textEnd"
+                    android:textAppearance="@style/TextAppearance.AppCompat.Large" />
             </LinearLayout>
+
         </LinearLayout>
     </ScrollView>
 

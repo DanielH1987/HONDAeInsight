@@ -9,7 +9,9 @@ import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
 import android.os.Bundle;
+import android.os.Environment;
 import android.text.TextUtils;
+import android.util.Log;
 import android.view.MenuItem;
 import android.view.WindowManager;
 import android.widget.Button;
@@ -26,12 +28,16 @@ import androidx.core.content.ContextCompat;
 import androidx.lifecycle.ViewModelProviders;
 
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.PrintWriter;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Date;
 
 import javax.net.ssl.HttpsURLConnection;
 
@@ -92,24 +98,29 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
             "2270229", //ODO
             "ATRV" // AUX BAT
     ));
-    private TextView _connectionText, _vinText, _messageText, _socMinText, _socMaxText,
-            _socDashText, _batTempText, _ambientTempText, _sohText, _kwText, _ampText, _voltText, _auxBat, _odoText,
+
+    private final String LOG_FILE_HEADER = "epoch,ODO,SoC (dash),SoC (min),SoC (max),SoH,Battemp,Ambienttemp,kW,Amp,Volt,AuxBat,Connection,Charging,Speed,Lat,Lon";
+    private TextView _connectionText, _vinText, _messageText, _socMinText, _socMaxText, _socDeltaText,
+            _socDashText, _batTempText, _ambientTempText, _sohText, _kwText, _ampText, _voltText, _auxBatText, _odoText,
             _rangeText, _chargingText, _speedText, _latText, _lonText;
     private EditText _abrpUserTokenText;
     private Switch _iternioSendToAPISwitch;
     private CheckBox _isChargingCheckBox;
 
-    private double _soc, _socMin, _socMax, _soh, _speed, _power, _batTemp;
+    private double _soc, _socMin, _socMax, _socDelta, _soh, _speed, _power, _batTemp, _amp, _volt, _auxBat;
 
     private byte _ambientTemp;
     private final double[] _socHistory = new double[RANGE_ESTIMATE_WINDOW_5KM + 1];
     private final double[] _socMinHistory = new double[RANGE_ESTIMATE_WINDOW_5KM + 1];
     private final double[] _socMaxHistory = new double[RANGE_ESTIMATE_WINDOW_5KM + 1];
     private int _socHistoryPosition = 0;
-    private int _lastOdo = Integer.MIN_VALUE;
-    private String _lat, _lon, _elevation;
+    private int _lastOdo = Integer.MIN_VALUE, _odo;
+    private String _vin, _lat, _lon;
+    private double _elevation;
     private ChargingConnection _chargingConnection;
     private boolean _isCharging;
+
+    private PrintWriter _logFileWriter;
 
     private SharedPreferences _preferences;
     private long _epoch;
@@ -152,6 +163,7 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
         _socMinText = findViewById(R.id.communicate_soc_min);
         _socMaxText = findViewById(R.id.communicate_soc_max);
         _socDashText = findViewById(R.id.communicate_soc_dash);
+        _socDeltaText = findViewById(R.id.communicate_soc_delta);
         _chargingText = findViewById(R.id.communicate_charging_connection);
         _isChargingCheckBox = findViewById(R.id.communicate_is_charging);
         _batTempText = findViewById(R.id.communicate_battemp);
@@ -160,7 +172,7 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
         _kwText = findViewById(R.id.communicate_kw);
         _ampText = findViewById(R.id.communicate_amp);
         _voltText = findViewById(R.id.communicate_volt);
-        _auxBat = findViewById(R.id.communicate_aux_bat);
+        _auxBatText = findViewById(R.id.communicate_aux_bat);
         _odoText = findViewById(R.id.communicate_odo);
         _rangeText = findViewById(R.id.communicate_range);
 
@@ -194,13 +206,12 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
         LocationManager lm = (LocationManager) this.getSystemService(Context.LOCATION_SERVICE);
         lm.requestLocationUpdates(LocationManager.GPS_PROVIDER, 2000, 0, this);
 
+        checkExternalMedia();
     }
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        _loopRunning = false;
-        _viewModel.disconnect();
     }
 
     private void connectCAN() { //initiate connection over CAN
@@ -210,7 +221,8 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
                     _viewModel.sendMessage(command + "\n\r");
                     _viewModel.getNewMessageParsed().wait(WAIT_FOR_NEW_MESSAGE_TIMEOUT);
                     if (_viewModel.isNewMessage() && _viewModel.getMessageID().equals(VIN_ID)) {
-                        setText(_vinText, parseVIN(_viewModel.getMessage()));
+                        parseVIN(_viewModel.getMessage());
+                        setText(_vinText, _vin);
                         _carConnected = true;
                         _viewModel.setNewMessageProcessed();
                     } else if (_viewModel.isNewMessage()) {
@@ -225,6 +237,7 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
             throw new RuntimeException(e);
         }
         if (_carConnected) {
+            openNewFileForWriting();
             loop();
         } else {
             setText(_messageText, "CAN not responding...");
@@ -252,18 +265,20 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
                             } else if (messageID.equals(SOH_ID)) {
                                 _soh = Integer.parseInt(message.substring(198, 202), 16) / 100.0;
                                 setText(_sohText, _soh + "%");
-                                double _amp = Math.round(Integer.valueOf(message.substring(280, 284), 16).shortValue() / 38.0 * 100.0) / 100.0;
-                                double _volt = Integer.parseInt(message.substring(76, 80), 16) / 10.0;
+                                _amp = Math.round(Integer.valueOf(message.substring(280, 284), 16).shortValue() / 38.0 * 100.0) / 100.0;
+                                _volt = Integer.parseInt(message.substring(76, 80), 16) / 10.0;
                                 setText(_ampText, _amp + "A");
-                                setText(_voltText, _volt + "/" + Math.round(_volt/0.96) / 100.0 + "V");
+                                setText(_voltText, _volt + "/" + Math.round(_volt / 0.96) / 100.0 + "V");
                                 _power = Math.round(_amp * _volt / 1000.0 * 100.0) / 100.0;
                                 setText(_kwText, _power + "kW");
                                 _newMessage = true;
                             } else if (messageID.equals(SOC_ID)) {
                                 _socMin = Integer.parseInt(message.substring(142, 146), 16) / 100.0;
                                 _socMax = Integer.parseInt(message.substring(138, 142), 16) / 100.0;
+                                _socDelta = Math.round((_socMax - _socMin) * 100.0) / 100.0;
                                 setText(_socMinText, _socMin + "%");
                                 setText(_socMaxText, _socMax + "%");
+                                setText(_socDeltaText, _socDelta + "%");
                                 _soc = Integer.parseInt(message.substring(156, 160), 16) / 100.0;
                                 setText(_socDashText, _soc + "%");
                                 _isCharging = message.charAt(161) == '1';
@@ -285,7 +300,7 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
                                 setText(_batTempText, _batTemp + "°C");
                                 _newMessage = true;
                             } else if (messageID.equals(ODO_ID)) {
-                                int _odo = Integer.parseInt(message.substring(18, 26), 16);
+                                _odo = Integer.parseInt(message.substring(18, 26), 16);
                                 if (_lastOdo < _odo) {
                                     _lastOdo = _odo;
                                     _socHistory[_socHistoryPosition] = _soc;
@@ -309,7 +324,8 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
                                 }
                                 _newMessage = true;
                             } else if (message.matches("\\d+\\.\\dV")) { //Aux Bat Voltage
-                                setText(_auxBat, message);
+                                _auxBat = Double.parseDouble(message.substring(0,message.length() - 1));
+                                setText(_auxBatText, message);
                             } else {
                                 if (_activity) {
                                     setText(_messageText, message);
@@ -328,10 +344,12 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
                 setText(_latText, _lat);
                 setText(_lonText, _lon);
                 _epoch = System.currentTimeMillis() / 1000;
-                if (_sendDataToIternioRunning && _newMessage) {
-                    sendDataToIternoAPI();
-                }
-                if (!_newMessage) {
+                if (_newMessage) {
+                    writeLineToLogFile();
+                    if (_sendDataToIternioRunning && _newMessage) {
+                        sendDataToIternoAPI();
+                    }
+                } else {
                     setText(_messageText, "No new Message from CAN... retry");
                 }
                 _newMessage = false;
@@ -396,6 +414,28 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
         }
     }
 
+    private void checkExternalMedia() {
+        boolean externalStorageAvailable;
+        boolean externalStorageWriteable;
+        String state = Environment.getExternalStorageState();
+
+        if (Environment.MEDIA_MOUNTED.equals(state)) {
+            // Can read and write the media
+            externalStorageAvailable = externalStorageWriteable = true;
+        } else if (Environment.MEDIA_MOUNTED_READ_ONLY.equals(state)) {
+            // Can only read the media
+            externalStorageAvailable = true;
+            externalStorageWriteable = false;
+        } else {
+            // Can't read or write
+            externalStorageAvailable = externalStorageWriteable = false;
+        }
+        if (!externalStorageWriteable) {
+            setText(_messageText, "\n\nExternal Media: readable="
+                    + externalStorageAvailable + " writable=" + false);
+        }
+    }
+
     private void setText(final TextView text, final String value) {
         runOnUiThread(() -> text.setText(value));
     }
@@ -415,9 +455,8 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
         edit.apply();
     }
 
-    private String parseVIN(String message) {
-        //Log.d("STATE", "message VIN, substring(10,44): " + message.substring(10, 44));
-        return hexToASCII(message.substring(10, 44));
+    private void parseVIN(String message) {
+        _vin = hexToASCII(message.substring(10, 44));
     }
 
     private static String hexToASCII(String hexStr) {
@@ -456,6 +495,7 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
                 _connectButton.setEnabled(true);
                 _connectButton.setText(R.string.connect);
                 _connectButton.setOnClickListener(v -> _viewModel.connect());
+                closeLogFile();
                 break;
 
             case RETRY:
@@ -464,6 +504,44 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
                 } else {
                     _viewModel.disconnect();
                 }
+        }
+    }
+
+    private void openNewFileForWriting() {
+        try {
+            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd-HH-mm-ss");
+            Date now = new Date();
+            File logFile = new File(this.getExternalFilesDir(null), _vin + "-" + sdf.format(now) + ".csv");
+
+            logFile.createNewFile();
+            Log.d("FILE", logFile + " " + logFile.exists());
+
+            _logFileWriter = new PrintWriter(logFile);
+            _logFileWriter.println(LOG_FILE_HEADER);
+
+        } catch (Exception e) {
+            Log.d("EXCEPTION", e.getMessage());
+            for (StackTraceElement element : e.getStackTrace()) {
+                Log.d("EXCEPTION", element.toString());
+
+            }
+        }
+
+    }
+
+    private void writeLineToLogFile() {
+        //"VIN,epoch,ODO,SoC (dash),SoC (min),SoC (max),SoH,Battemp,Ambienttemp,kW,Amp,Volt,AuxBat,Connection,Charging,Speed,Lat,Lon"
+        _logFileWriter.println(_epoch + "," + _odo + "," + _soc + ","
+                + _socMin + "," + _socMax + "," + _soh + "," + _batTemp + ","
+                + _ambientTemp + "," + _power + "," + _amp + "," + _volt + ","
+                + _auxBat + "," + _chargingConnection.getName() + "," + _isCharging
+                + "," + _speed + "," + _lat + "," + _lon);
+    }
+
+    private void closeLogFile() {
+        if (_logFileWriter != null) {
+            _logFileWriter.flush();
+            _logFileWriter.close();
         }
     }
 
@@ -496,7 +574,7 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
         _speed = Math.round(location.getSpeed() * 36) / 10.0;
         _lat = String.valueOf(location.getLatitude());
         _lon = String.valueOf(location.getLongitude());
-        _elevation = String.valueOf(Math.round(location.getAltitude() * 10.0) / 10.0);
+        _elevation = Math.round(location.getAltitude() * 10.0) / 10.0;
     }
 
     enum ChargingConnection {
