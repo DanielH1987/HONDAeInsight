@@ -129,7 +129,7 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
     private volatile boolean _loopRunning = false;
     private volatile boolean _sendDataToIternioRunning = false;
     private boolean _carConnected = false;
-    private boolean _newMessage = false;
+    private byte _newMessage;
     private boolean _activity;
 
     @Override
@@ -261,7 +261,7 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
                             if (messageID.equals(AMBIENT_ID)) {
                                 _ambientTemp = Integer.valueOf(message.substring(42, 44), 16).byteValue();
                                 setText(_ambientTempText, _ambientTemp + ".0°C");
-                                _newMessage = true;
+                                _newMessage++;
                             } else if (messageID.equals(SOH_ID)) {
                                 _soh = Integer.parseInt(message.substring(198, 202), 16) / 100.0;
                                 setText(_sohText, _soh + "%");
@@ -271,7 +271,7 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
                                 setText(_voltText, _volt + "/" + Math.round(_volt / 0.96) / 100.0 + "V");
                                 _power = Math.round(_amp * _volt / 1000.0 * 100.0) / 100.0;
                                 setText(_kwText, _power + "kW");
-                                _newMessage = true;
+                                _newMessage++;
                             } else if (messageID.equals(SOC_ID)) {
                                 _socMin = Integer.parseInt(message.substring(142, 146), 16) / 100.0;
                                 _socMax = Integer.parseInt(message.substring(138, 142), 16) / 100.0;
@@ -294,11 +294,11 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
                                 }
                                 setText(_chargingText, _chargingConnection.getName());
                                 setChecked(_isChargingCheckBox, _isCharging);
-                                _newMessage = true;
+                                _newMessage++;
                             } else if (messageID.equals(BATTEMP_ID)) {
                                 _batTemp = Integer.valueOf(message.substring(410, 414), 16).shortValue() / 10.0;
                                 setText(_batTempText, _batTemp + "°C");
-                                _newMessage = true;
+                                _newMessage++;
                             } else if (messageID.equals(ODO_ID)) {
                                 _odo = Integer.parseInt(message.substring(18, 26), 16);
                                 if (_lastOdo < _odo) {
@@ -322,9 +322,9 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
                                         setText(_rangeText, "---km / ---km / ---km");
                                     }
                                 }
-                                _newMessage = true;
+                                _newMessage++;
                             } else if (message.matches("\\d+\\.\\dV")) { //Aux Bat Voltage
-                                _auxBat = Double.parseDouble(message.substring(0,message.length() - 1));
+                                _auxBat = Double.parseDouble(message.substring(0, message.length() - 1));
                                 setText(_auxBatText, message);
                             } else {
                                 if (_activity) {
@@ -344,15 +344,15 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
                 setText(_latText, _lat);
                 setText(_lonText, _lon);
                 _epoch = System.currentTimeMillis() / 1000;
-                if (_newMessage) {
+                if (_newMessage > 4) {
                     writeLineToLogFile();
-                    if (_sendDataToIternioRunning && _newMessage) {
+                    if (_sendDataToIternioRunning) {
                         sendDataToIternoAPI();
                     }
                 } else {
                     setText(_messageText, "No new Message from CAN... retry");
                 }
-                _newMessage = false;
+                _newMessage = 0;
                 //wait 5 Seconds since last loop started
                 long millis = CAN_BUS_SCAN_INTERVALL - (System.currentTimeMillis() - start);
                 if (millis > 0) {
@@ -375,25 +375,25 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
     }
 
     private void sendDataToIternoAPI() { //Send data to Iterno API
-        String requestString = "https://api.iternio.com/1/tlm/send?api_key=" + ITERNIO_API_KEY +
-                "&token=" + _preferences.getString(USER_TOKEN_PREFS, "") +
-                "&tlm=" +
-                "{\"utc\":" + _epoch +
-                ",\"soc\":" + _soc +
-                ",\"soh\": " + _soh +
-                ",\"speed\":" + _speed +
-                ",\"lat\":" + _lat +
-                ",\"lon\":" + _lon +
-                ",\"elevation\":" + _elevation +
-                ",\"is_charging\":" + _isCharging +
-                ",\"is_dcfc\":" + _chargingConnection.getDcfc() +
-                ",\"power\":" + _power +
-                ",\"ext_temp\":" + _ambientTemp +
-                ",\"batt_temp\":" + _batTemp +
-                ",\"car_model\":" + "\"honda:e:20:36\"" +
-                "}";
-
         try {
+            String requestString = "https://api.iternio.com/1/tlm/send?api_key=" + ITERNIO_API_KEY +
+                    "&token=" + _preferences.getString(USER_TOKEN_PREFS, "") +
+                    "&tlm=" +
+                    "{\"utc\":" + _epoch +
+                    ",\"soc\":" + _soc +
+                    ",\"soh\": " + _soh +
+                    ",\"speed\":" + _speed +
+                    ",\"lat\":" + _lat +
+                    ",\"lon\":" + _lon +
+                    ",\"elevation\":" + _elevation +
+                    ",\"is_charging\":" + _isCharging +
+                    ",\"is_dcfc\":" + _chargingConnection.getDcfc() +
+                    ",\"power\":" + _power +
+                    ",\"ext_temp\":" + _ambientTemp +
+                    ",\"batt_temp\":" + _batTemp +
+                    ",\"car_model\":" + "\"honda:e:20:36\"" +
+                    "}";
+
             URL url = new URL(requestString);
             HttpsURLConnection con = (HttpsURLConnection) url.openConnection();
             con.setRequestMethod("POST");
