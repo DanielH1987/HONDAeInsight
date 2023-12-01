@@ -502,6 +502,7 @@
                 android:layout_weight="0"
                 android:autofillHints=""
                 android:inputType="text"
+                android:selectAllOnFocus="true"
                 android:textAlignment="center" />
 
             <LinearLayout
@@ -521,6 +522,30 @@
 
                 <Switch
                     android:id="@+id/communicate_iternio_send_to_api"
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
+                    android:textAlignment="textEnd"
+                    android:textAppearance="@style/TextAppearance.AppCompat.Large" />
+
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:id="@+id/text_auto_reconnect"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="@string/auto_reconnect"
+                    android:textAlignment="textEnd"
+                    android:textAppearance="@style/TextAppearance.AppCompat.Large" />
+
+                <Switch
+                    android:id="@+id/communicate_auto_reconnect"
                     android:layout_width="48dp"
                     android:layout_height="48dp"
                     android:textAlignment="textEnd"

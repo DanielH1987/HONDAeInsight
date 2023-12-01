@@ -35,5 +35,6 @@
     <string name="aux_bat">Aux Battery</string>
     <string name="range">Range (dash / min / max)</string>
     <string name="send_data">Send Data to ABRP API</string>
+    <string name="auto_reconnect">Auto reconnect</string>
 
 </resources>

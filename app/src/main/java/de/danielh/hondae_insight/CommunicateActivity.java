@@ -55,6 +55,9 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
     public static int RANGE_ESTIMATE_WINDOW_5KM = 5;
     private final static String USER_TOKEN_PREFS = "abrp_user_token";
     private final static String ITERNIO_SEND_TO_API_SWITCH = "iternioSendToAPISwitch";
+    private final static String AUTO_RECONNECT_SWITCH = "autoReconnectSwitch";
+
+    private final static int MAX_RETRY = 3;
 
     private final ArrayList<String> _connectionCommands = new ArrayList<>(Arrays.asList(
             "ATWS",
@@ -104,7 +107,7 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
             _socDashText, _batTempText, _ambientTempText, _sohText, _kwText, _ampText, _voltText, _auxBatText, _odoText,
             _rangeText, _chargingText, _speedText, _latText, _lonText;
     private EditText _abrpUserTokenText;
-    private Switch _iternioSendToAPISwitch;
+    private Switch _iternioSendToAPISwitch, _autoReconnectSwitch;
     private CheckBox _isChargingCheckBox;
 
     private double _soc, _socMin, _socMax, _socDelta, _soh, _speed, _power, _batTemp, _amp, _volt, _auxBat;
@@ -128,6 +131,9 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
     private CommunicateViewModel _viewModel;
     private volatile boolean _loopRunning = false;
     private volatile boolean _sendDataToIternioRunning = false;
+
+    private volatile int _retries = 0;
+    private volatile boolean _isAutoReconnect = false;
     private boolean _carConnected = false;
     private byte _newMessage;
     private boolean _activity;
@@ -184,7 +190,9 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
         _abrpUserTokenText.setText(_preferences.getString(USER_TOKEN_PREFS, "User-Token"));
 
         _connectButton = findViewById(R.id.communicate_connect);
-
+        _autoReconnectSwitch = findViewById(R.id.communicate_auto_reconnect);
+        _autoReconnectSwitch.setOnCheckedChangeListener(((buttonView, isChecked) -> handleAutoReconnectSwitch(isChecked)));
+        _autoReconnectSwitch.setChecked(_preferences.getBoolean(AUTO_RECONNECT_SWITCH, false));
 
         // Start observing the data sent to us by the ViewModel
         _viewModel.getConnectionStatus().observe(this, this::onConnectionStatus);
@@ -204,7 +212,7 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
 
         //get location manager
         LocationManager lm = (LocationManager) this.getSystemService(Context.LOCATION_SERVICE);
-        lm.requestLocationUpdates(LocationManager.GPS_PROVIDER, 2000, 0, this);
+        lm.requestLocationUpdates(LocationManager.GPS_PROVIDER, 1000, 0, this);
 
         checkExternalMedia();
     }
@@ -265,7 +273,7 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
                             } else if (messageID.equals(SOH_ID)) {
                                 _soh = Integer.parseInt(message.substring(198, 202), 16) / 100.0;
                                 setText(_sohText, _soh + "%");
-                                _amp = Math.round(Integer.valueOf(message.substring(280, 284), 16).shortValue() / 38.0 * 100.0) / 100.0;
+                                _amp = Math.round(Integer.valueOf(message.substring(280, 284), 16).shortValue() / 42.0 * 100.0) / 100.0;
                                 _volt = Integer.parseInt(message.substring(76, 80), 16) / 10.0;
                                 setText(_ampText, _amp + "A");
                                 setText(_voltText, _volt + "/" + Math.round(_volt / 0.96) / 100.0 + "V");
@@ -343,7 +351,7 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
                 setText(_speedText, _speed + "km/h");
                 setText(_latText, _lat);
                 setText(_lonText, _lon);
-                _epoch = System.currentTimeMillis() / 1000;
+                _epoch = start / 1000;
                 if (_newMessage > 4) {
                     writeLineToLogFile();
                     if (_sendDataToIternioRunning) {
@@ -351,15 +359,9 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
                     }
                 } else {
                     setText(_messageText, "No new Message from CAN... retry");
-                }
-                _newMessage = 0;
-                //wait 5 Seconds since last loop started
-                long millis = CAN_BUS_SCAN_INTERVALL - (System.currentTimeMillis() - start);
-                if (millis > 0) {
-                    Thread.sleep(millis);
-                } else { // If wait time is overdue; wait to be able to read the exception message
                     Thread.sleep(CAN_BUS_SCAN_INTERVALL);
                 }
+                _newMessage = 0;
             }
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
@@ -368,6 +370,11 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
                 setText(_messageText, e.getMessage());
             } else {
                 setText(_messageText, "unexpected Exception");
+            }
+            try{
+                Thread.sleep(CAN_BUS_SCAN_INTERVALL);
+            } catch (InterruptedException e2) {
+                throw new RuntimeException(e2);
             }
         }
         _carConnected = false;
@@ -410,6 +417,11 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
                 setText(_messageText, e.getMessage());
             } else {
                 setText(_messageText, "unexpected Exception at Iternio API");
+            }
+            try {
+                Thread.sleep(CAN_BUS_SCAN_INTERVALL);
+            } catch (InterruptedException e2) {
+                throw new RuntimeException(e2);
             }
         }
     }
@@ -455,6 +467,13 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
         edit.apply();
     }
 
+    private void handleAutoReconnectSwitch(boolean isChecked) {
+        _isAutoReconnect = isChecked;
+        SharedPreferences.Editor edit = _preferences.edit();
+        edit.putBoolean(AUTO_RECONNECT_SWITCH, isChecked);
+        edit.apply();
+    }
+
     private void parseVIN(String message) {
         _vin = hexToASCII(message.substring(10, 44));
     }
@@ -496,13 +515,20 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
                 _connectButton.setText(R.string.connect);
                 _connectButton.setOnClickListener(v -> _viewModel.connect());
                 closeLogFile();
+                _retries = 0;
                 break;
 
             case RETRY:
-                if (_viewModel.isRetry()) {
+                _retries++;
+                if (_viewModel.isRetry() && _retries < MAX_RETRY) {
                     _viewModel.connect();
                 } else {
                     _viewModel.disconnect();
+                }
+
+            case AUTO_RECONNECT:
+                if (_autoReconnectSwitch.isChecked()) {
+                    _viewModel.connect();
                 }
         }
     }
@@ -511,7 +537,7 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
         try {
             SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd-HH-mm-ss");
             Date now = new Date();
-            File logFile = new File(this.getExternalFilesDir(null), _vin + "-" + sdf.format(now) + ".csv");
+            File logFile = new File(this.getExternalMediaDirs()[0], _vin + "-" + sdf.format(now) + ".csv");
 
             logFile.createNewFile();
             Log.d("FILE", logFile + " " + logFile.exists());

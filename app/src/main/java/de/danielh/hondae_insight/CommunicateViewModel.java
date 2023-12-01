@@ -198,6 +198,10 @@ public class CommunicateViewModel extends AndroidViewModel {
     // Helper method to create toast messages.
     private void toast(@StringRes int messageResource) {
         Toast.makeText(getApplication(), messageResource, Toast.LENGTH_LONG).show();
+        if (messageResource == R.string.message_send_error) {
+            disconnect();
+            _connectionStatusData.postValue(ConnectionStatus.AUTO_RECONNECT);
+        }
     }
 
     // Getter method for the activity to use.
@@ -247,6 +251,6 @@ public class CommunicateViewModel extends AndroidViewModel {
         DISCONNECTED,
         CONNECTING,
         CONNECTED,
-        RETRY
+        AUTO_RECONNECT, RETRY
     }
 }

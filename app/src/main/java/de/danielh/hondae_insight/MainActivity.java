@@ -71,7 +71,7 @@ public class MainActivity extends AppCompatActivity {
 
     public void connectToLastConnectedDevice() {
         try {
-            Thread.sleep(1000);
+            Thread.sleep(200);
             String deviceName = _preferences.getString(DEVICE_NAME, null);
             String deviceMac = _preferences.getString(DEVICE_MAC, null);
 
