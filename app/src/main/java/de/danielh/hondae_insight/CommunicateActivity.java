@@ -43,9 +43,9 @@ import javax.net.ssl.HttpsURLConnection;
 
 public class CommunicateActivity extends AppCompatActivity implements LocationListener {
 
-    public static final int CAN_BUS_SCAN_INTERVALL = 5000;
+    public static final int CAN_BUS_SCAN_INTERVALL = 2000;
     public static final int WAIT_FOR_NEW_MESSAGE_TIMEOUT = 1000;
-    public static final int WAIT_TIME_BETWEEN_COMMAND_SENDS_MS = 50;
+    public static final int WAIT_TIME_BETWEEN_COMMAND_SENDS_MS = 100;
     public static String VIN_ID = "1862F190";
     public static String AMBIENT_ID = "39627028";
     public static String SOH_ID = "F6622021";
@@ -136,7 +136,6 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
     private volatile boolean _isAutoReconnect = false;
     private boolean _carConnected = false;
     private byte _newMessage;
-    private boolean _activity;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -335,12 +334,7 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
                                 _auxBat = Double.parseDouble(message.substring(0, message.length() - 1));
                                 setText(_auxBatText, message);
                             } else {
-                                if (_activity) {
-                                    setText(_messageText, message);
-                                } else {
-                                    setText(_messageText, message + " #");
-                                }
-                                _activity = !_activity;
+                                setText(_messageText, message);
                             }
                             _viewModel.setNewMessageProcessed();
                         }
@@ -355,7 +349,24 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
                 if (_newMessage > 4) {
                     writeLineToLogFile();
                     if (_sendDataToIternioRunning) {
-                        sendDataToIternoAPI();
+                        final String requestString = "https://api.iternio.com/1/tlm/send?api_key=" + ITERNIO_API_KEY +
+                                "&token=" + _preferences.getString(USER_TOKEN_PREFS, "") +
+                                "&tlm=" +
+                                "{\"utc\":" + _epoch +
+                                ",\"soc\":" + _soc +
+                                ",\"soh\": " + _soh +
+                                ",\"speed\":" + _speed +
+                                ",\"lat\":" + _lat +
+                                ",\"lon\":" + _lon +
+                                ",\"elevation\":" + _elevation +
+                                ",\"is_charging\":" + _isCharging +
+                                ",\"is_dcfc\":" + _chargingConnection.getDcfc() +
+                                ",\"power\":" + _power +
+                                ",\"ext_temp\":" + _ambientTemp +
+                                ",\"batt_temp\":" + _batTemp +
+                                ",\"car_model\":" + "\"honda:e:20:36\"" +
+                                "}";
+                        new Thread(this::sendDataToIternoAPI, requestString).start();
                     }
                 } else {
                     setText(_messageText, "No new Message from CAN... retry");
@@ -371,7 +382,7 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
             } else {
                 setText(_messageText, "unexpected Exception");
             }
-            try{
+            try {
                 Thread.sleep(CAN_BUS_SCAN_INTERVALL);
             } catch (InterruptedException e2) {
                 throw new RuntimeException(e2);
@@ -383,30 +394,13 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
 
     private void sendDataToIternoAPI() { //Send data to Iterno API
         try {
-            String requestString = "https://api.iternio.com/1/tlm/send?api_key=" + ITERNIO_API_KEY +
-                    "&token=" + _preferences.getString(USER_TOKEN_PREFS, "") +
-                    "&tlm=" +
-                    "{\"utc\":" + _epoch +
-                    ",\"soc\":" + _soc +
-                    ",\"soh\": " + _soh +
-                    ",\"speed\":" + _speed +
-                    ",\"lat\":" + _lat +
-                    ",\"lon\":" + _lon +
-                    ",\"elevation\":" + _elevation +
-                    ",\"is_charging\":" + _isCharging +
-                    ",\"is_dcfc\":" + _chargingConnection.getDcfc() +
-                    ",\"power\":" + _power +
-                    ",\"ext_temp\":" + _ambientTemp +
-                    ",\"batt_temp\":" + _batTemp +
-                    ",\"car_model\":" + "\"honda:e:20:36\"" +
-                    "}";
-
-            URL url = new URL(requestString);
+            final String requestString = Thread.currentThread().getName();
+            final URL url = new URL(requestString);
             HttpsURLConnection con = (HttpsURLConnection) url.openConnection();
             con.setRequestMethod("POST");
             con.getOutputStream().write(new byte[0]);
-            BufferedReader br = new BufferedReader(new InputStreamReader(con.getInputStream(), StandardCharsets.UTF_8));
-            StringBuilder response = new StringBuilder();
+            final BufferedReader br = new BufferedReader(new InputStreamReader(con.getInputStream(), StandardCharsets.UTF_8));
+            final StringBuilder response = new StringBuilder();
             String responseLine;
             while ((responseLine = br.readLine()) != null) {
                 response.append(responseLine.trim());
