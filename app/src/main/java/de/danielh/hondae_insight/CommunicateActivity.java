@@ -46,18 +46,17 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
     public static final int CAN_BUS_SCAN_INTERVALL = 2000;
     public static final int WAIT_FOR_NEW_MESSAGE_TIMEOUT = 1000;
     public static final int WAIT_TIME_BETWEEN_COMMAND_SENDS_MS = 100;
-    public static String VIN_ID = "1862F190";
-    public static String AMBIENT_ID = "39627028";
-    public static String SOH_ID = "F6622021";
-    public static String SOC_ID = "F6622029";
-    public static String BATTEMP_ID = "F662202A";
-    public static String ODO_ID = "39627022";
-    public static int RANGE_ESTIMATE_WINDOW_5KM = 5;
-    private final static String USER_TOKEN_PREFS = "abrp_user_token";
-    private final static String ITERNIO_SEND_TO_API_SWITCH = "iternioSendToAPISwitch";
-    private final static String AUTO_RECONNECT_SWITCH = "autoReconnectSwitch";
-
-    private final static int MAX_RETRY = 3;
+    public static final String VIN_ID = "1862F190";
+    public static final String AMBIENT_ID = "39627028";
+    public static final String SOH_ID = "F6622021";
+    public static final String SOC_ID = "F6622029";
+    public static final String BATTEMP_ID = "F662202A";
+    public static final String ODO_ID = "39627022";
+    public static final int RANGE_ESTIMATE_WINDOW_5KM = 5;
+    private static final String USER_TOKEN_PREFS = "abrp_user_token";
+    private static final String ITERNIO_SEND_TO_API_SWITCH = "iternioSendToAPISwitch";
+    private static final String AUTO_RECONNECT_SWITCH = "autoReconnectSwitch";
+    private static final int MAX_RETRY = 5;
 
     private final ArrayList<String> _connectionCommands = new ArrayList<>(Arrays.asList(
             "ATWS",
@@ -184,7 +183,7 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
         _abrpUserTokenText = findViewById(R.id.communicate_abrp_user_token);
         _iternioSendToAPISwitch = findViewById(R.id.communicate_iternio_send_to_api);
 
-        _iternioSendToAPISwitch.setOnCheckedChangeListener((buttonView, isChecked) -> handleIternioSendToAPISwtich(isChecked));
+        _iternioSendToAPISwitch.setOnCheckedChangeListener((buttonView, isChecked) -> handleIternioSendToAPISwitch(isChecked));
         _iternioSendToAPISwitch.setChecked(_preferences.getBoolean(ITERNIO_SEND_TO_API_SWITCH, false));
         _abrpUserTokenText.setText(_preferences.getString(USER_TOKEN_PREFS, "User-Token"));
 
@@ -267,27 +266,18 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
                             final String messageID = _viewModel.getMessageID();
                             if (messageID.equals(AMBIENT_ID)) {
                                 _ambientTemp = Integer.valueOf(message.substring(42, 44), 16).byteValue();
-                                setText(_ambientTempText, _ambientTemp + ".0°C");
                                 _newMessage++;
                             } else if (messageID.equals(SOH_ID)) {
                                 _soh = Integer.parseInt(message.substring(198, 202), 16) / 100.0;
-                                setText(_sohText, _soh + "%");
-                                _amp = Math.round(Integer.valueOf(message.substring(280, 284), 16).shortValue() / 42.0 * 100.0) / 100.0;
+                                _amp = Math.round((Integer.valueOf(message.substring(280, 284), 16).shortValue() / 34.0) * 100.0) / 100.0;
                                 _volt = Integer.parseInt(message.substring(76, 80), 16) / 10.0;
-                                setText(_ampText, _amp + "A");
-                                setText(_voltText, _volt + "/" + Math.round(_volt / 0.96) / 100.0 + "V");
                                 _power = Math.round(_amp * _volt / 1000.0 * 100.0) / 100.0;
-                                setText(_kwText, _power + "kW");
                                 _newMessage++;
                             } else if (messageID.equals(SOC_ID)) {
                                 _socMin = Integer.parseInt(message.substring(142, 146), 16) / 100.0;
                                 _socMax = Integer.parseInt(message.substring(138, 142), 16) / 100.0;
                                 _socDelta = Math.round((_socMax - _socMin) * 100.0) / 100.0;
-                                setText(_socMinText, _socMin + "%");
-                                setText(_socMaxText, _socMax + "%");
-                                setText(_socDeltaText, _socDelta + "%");
                                 _soc = Integer.parseInt(message.substring(156, 160), 16) / 100.0;
-                                setText(_socDashText, _soc + "%");
                                 _isCharging = message.charAt(161) == '1';
                                 switch (message.substring(277, 278)) {
                                     case "2":
@@ -299,12 +289,9 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
                                     default:
                                         _chargingConnection = ChargingConnection.NC;
                                 }
-                                setText(_chargingText, _chargingConnection.getName());
-                                setChecked(_isChargingCheckBox, _isCharging);
                                 _newMessage++;
                             } else if (messageID.equals(BATTEMP_ID)) {
                                 _batTemp = Integer.valueOf(message.substring(410, 414), 16).shortValue() / 10.0;
-                                setText(_batTempText, _batTemp + "°C");
                                 _newMessage++;
                             } else if (messageID.equals(ODO_ID)) {
                                 _odo = Integer.parseInt(message.substring(18, 26), 16);
@@ -314,7 +301,6 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
                                     _socMinHistory[_socHistoryPosition] = _socMin;
                                     _socMaxHistory[_socHistoryPosition] = _socMax;
                                     _socHistoryPosition = (_socHistoryPosition + 1) % (RANGE_ESTIMATE_WINDOW_5KM + 1);
-                                    setText(_odoText, _odo + "km");
                                     //Should be _socHistoryPosition - RANGE_ESTIMATE_WINDOW
                                     //but Java keeps the negative sign
                                     double socDelta = _socHistory[(_socHistoryPosition + 1) % (RANGE_ESTIMATE_WINDOW_5KM + 1)] - _soc;
@@ -339,8 +325,24 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
                             _viewModel.setNewMessageProcessed();
                         }
                     }
-                    Thread.sleep(WAIT_TIME_BETWEEN_COMMAND_SENDS_MS);
+                    if (command.length() <= 6) {
+                        Thread.sleep(WAIT_TIME_BETWEEN_COMMAND_SENDS_MS);
+                    }
                 }
+
+                setText(_ambientTempText, _ambientTemp + ".0°C");
+                setText(_sohText, _soh + "%");
+                setText(_ampText, _amp + "A");
+                setText(_voltText, _volt + "/" + Math.round(_volt / 0.96) / 100.0 + "V");
+                setText(_kwText, _power + "kW");
+                setText(_socMinText, _socMin + "%");
+                setText(_socMaxText, _socMax + "%");
+                setText(_socDeltaText, _socDelta + "%");
+                setText(_socDashText, _soc + "%");
+                setText(_chargingText, _chargingConnection.getName());
+                setChecked(_isChargingCheckBox, _isCharging);
+                setText(_batTempText, _batTemp + "°C");
+                setText(_odoText, _odo + "km");
 
                 setText(_speedText, _speed + "km/h");
                 setText(_latText, _lat);
@@ -393,29 +395,29 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
     }
 
     private void sendDataToIternoAPI() { //Send data to Iterno API
-        try {
-            final String requestString = Thread.currentThread().getName();
-            final URL url = new URL(requestString);
-            HttpsURLConnection con = (HttpsURLConnection) url.openConnection();
-            con.setRequestMethod("POST");
-            con.getOutputStream().write(new byte[0]);
-            final BufferedReader br = new BufferedReader(new InputStreamReader(con.getInputStream(), StandardCharsets.UTF_8));
-            final StringBuilder response = new StringBuilder();
-            String responseLine;
-            while ((responseLine = br.readLine()) != null) {
-                response.append(responseLine.trim());
-            }
-            setText(_messageText, response.toString());
-        } catch (IOException e) {
-            if (e.getMessage() != null) {
-                setText(_messageText, e.getMessage());
-            } else {
-                setText(_messageText, "unexpected Exception at Iternio API");
-            }
+        int retries = 0;
+        while (retries < MAX_RETRY) {
             try {
-                Thread.sleep(CAN_BUS_SCAN_INTERVALL);
-            } catch (InterruptedException e2) {
-                throw new RuntimeException(e2);
+                final String requestString = Thread.currentThread().getName();
+                final URL url = new URL(requestString);
+                HttpsURLConnection con = (HttpsURLConnection) url.openConnection();
+                con.setRequestMethod("POST");
+                con.getOutputStream().write(new byte[0]);
+                final BufferedReader br = new BufferedReader(new InputStreamReader(con.getInputStream(), StandardCharsets.UTF_8));
+                final StringBuilder response = new StringBuilder();
+                String responseLine;
+                while ((responseLine = br.readLine()) != null) {
+                    response.append(responseLine.trim());
+                }
+                setText(_messageText, response.toString());
+                retries = MAX_RETRY;
+            } catch (IOException e) {
+                retries++;
+                if (e.getMessage() != null) {
+                    setText(_messageText, e.getMessage());
+                } else {
+                    setText(_messageText, "unexpected Exception at Iternio API");
+                }
             }
         }
     }
@@ -450,7 +452,7 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
         runOnUiThread(() -> checkable.setChecked(checked));
     }
 
-    private void handleIternioSendToAPISwtich(boolean isChecked) {
+    private void handleIternioSendToAPISwitch(boolean isChecked) {
         _sendDataToIternioRunning = isChecked;
         SharedPreferences.Editor edit = _preferences.edit();
         edit.putBoolean(ITERNIO_SEND_TO_API_SWITCH, isChecked);
