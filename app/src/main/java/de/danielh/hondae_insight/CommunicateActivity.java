@@ -45,7 +45,7 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
 
     public static final int CAN_BUS_SCAN_INTERVALL = 2000;
     public static final int WAIT_FOR_NEW_MESSAGE_TIMEOUT = 1000;
-    public static final int WAIT_TIME_BETWEEN_COMMAND_SENDS_MS = 100;
+    public static final int WAIT_TIME_BETWEEN_COMMAND_SENDS_MS = 50;
     public static final String VIN_ID = "1862F190";
     public static final String AMBIENT_ID = "39627028";
     public static final String SOH_ID = "F6622021";
@@ -101,7 +101,7 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
             "ATRV" // AUX BAT
     ));
 
-    private final String LOG_FILE_HEADER = "epoch,ODO,SoC (dash),SoC (min),SoC (max),SoH,Battemp,Ambienttemp,kW,Amp,Volt,AuxBat,Connection,Charging,Speed,Lat,Lon";
+    private final String LOG_FILE_HEADER = "sysTimeMs,ODO,SoC (dash),SoC (min),SoC (max),SoH,Battemp,Ambienttemp,kW,Amp,Volt,AuxBat,Connection,Charging,Speed,Lat,Lon";
     private TextView _connectionText, _vinText, _messageText, _socMinText, _socMaxText, _socDeltaText,
             _socDashText, _batTempText, _ambientTempText, _sohText, _kwText, _ampText, _voltText, _auxBatText, _odoText,
             _rangeText, _chargingText, _speedText, _latText, _lonText;
@@ -125,7 +125,8 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
     private PrintWriter _logFileWriter;
 
     private SharedPreferences _preferences;
-    private long _epoch;
+    private long _sysTimeMs;
+    private long _epoch, _lastEpoch;
     private Button _connectButton;
     private CommunicateViewModel _viewModel;
     private volatile boolean _loopRunning = false;
@@ -236,7 +237,9 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
                         _viewModel.setNewMessageProcessed();
                     }
                 }
-                Thread.sleep(WAIT_TIME_BETWEEN_COMMAND_SENDS_MS);
+                if (command.length() <= 6) {
+                    Thread.sleep(WAIT_TIME_BETWEEN_COMMAND_SENDS_MS);
+                }
             }
         } catch (InterruptedException e) {
             //Log.d("STATE", e.getMessage());
@@ -256,7 +259,7 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
         _loopRunning = true;
         try {
             while (_loopRunning) {
-                long start = System.currentTimeMillis();
+                _sysTimeMs = System.currentTimeMillis();
                 for (String command : _loopCommands) {
                     synchronized (_viewModel.getNewMessageParsed()) {
                         _viewModel.sendMessage(command + "\n\r");
@@ -320,7 +323,7 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
                                 _auxBat = Double.parseDouble(message.substring(0, message.length() - 1));
                                 setText(_auxBatText, message);
                             } else {
-                                setText(_messageText, message);
+                                //setText(_messageText, message);
                             }
                             _viewModel.setNewMessageProcessed();
                         }
@@ -347,10 +350,11 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
                 setText(_speedText, _speed + "km/h");
                 setText(_latText, _lat);
                 setText(_lonText, _lon);
-                _epoch = start / 1000;
+                _epoch = _sysTimeMs / 1000;
                 if (_newMessage > 4) {
+                    setText(_messageText, String.valueOf(_epoch));
                     writeLineToLogFile();
-                    if (_sendDataToIternioRunning) {
+                    if (_sendDataToIternioRunning && _lastEpoch + 1 < _epoch) {
                         final String requestString = "https://api.iternio.com/1/tlm/send?api_key=" + ITERNIO_API_KEY +
                                 "&token=" + _preferences.getString(USER_TOKEN_PREFS, "") +
                                 "&tlm=" +
@@ -368,10 +372,11 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
                                 ",\"batt_temp\":" + _batTemp +
                                 ",\"car_model\":" + "\"honda:e:20:36\"" +
                                 "}";
+                        _lastEpoch = _epoch;
                         new Thread(this::sendDataToIternoAPI, requestString).start();
                     }
                 } else {
-                    setText(_messageText, "No new Message from CAN... retry");
+                    setText(_messageText, "No new Message from CAN... wait" + String.valueOf(CAN_BUS_SCAN_INTERVALL) + "ms");
                     Thread.sleep(CAN_BUS_SCAN_INTERVALL);
                 }
                 _newMessage = 0;
@@ -391,35 +396,31 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
             }
         }
         _carConnected = false;
-
     }
 
     private void sendDataToIternoAPI() { //Send data to Iterno API
-        int retries = 0;
-        while (retries < MAX_RETRY) {
-            try {
-                final String requestString = Thread.currentThread().getName();
-                final URL url = new URL(requestString);
-                HttpsURLConnection con = (HttpsURLConnection) url.openConnection();
-                con.setRequestMethod("POST");
-                con.getOutputStream().write(new byte[0]);
-                final BufferedReader br = new BufferedReader(new InputStreamReader(con.getInputStream(), StandardCharsets.UTF_8));
-                final StringBuilder response = new StringBuilder();
-                String responseLine;
-                while ((responseLine = br.readLine()) != null) {
-                    response.append(responseLine.trim());
-                }
-                setText(_messageText, response.toString());
-                retries = MAX_RETRY;
-            } catch (IOException e) {
-                retries++;
-                if (e.getMessage() != null) {
-                    setText(_messageText, e.getMessage());
-                } else {
-                    setText(_messageText, "unexpected Exception at Iternio API");
-                }
+
+        try {
+            final String requestString = Thread.currentThread().getName();
+            final URL url = new URL(requestString);
+            HttpsURLConnection con = (HttpsURLConnection) url.openConnection();
+            con.setRequestMethod("POST");
+            con.getOutputStream().write(new byte[0]);
+            final BufferedReader br = new BufferedReader(new InputStreamReader(con.getInputStream(), StandardCharsets.UTF_8));
+            final StringBuilder response = new StringBuilder();
+            String responseLine;
+            while ((responseLine = br.readLine()) != null) {
+                response.append(responseLine.trim());
+            }
+            setText(_messageText, response.toString());
+        } catch (IOException e) {
+            if (e.getMessage() != null) {
+                setText(_messageText, e.getMessage());
+            } else {
+                setText(_messageText, "unexpected Exception at Iternio API");
             }
         }
+
     }
 
     private void checkExternalMedia() {
@@ -533,7 +534,8 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
         try {
             SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd-HH-mm-ss");
             Date now = new Date();
-            File logFile = new File(this.getExternalMediaDirs()[0], _vin + "-" + sdf.format(now) + ".csv");
+
+            File logFile = new File(this.getExternalMediaDirs()[1], _vin + "-" + sdf.format(now) + ".csv");
 
             logFile.createNewFile();
             Log.d("FILE", logFile + " " + logFile.exists());
@@ -553,7 +555,7 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
 
     private void writeLineToLogFile() {
         //"VIN,epoch,ODO,SoC (dash),SoC (min),SoC (max),SoH,Battemp,Ambienttemp,kW,Amp,Volt,AuxBat,Connection,Charging,Speed,Lat,Lon"
-        _logFileWriter.println(_epoch + "," + _odo + "," + _soc + ","
+        _logFileWriter.println(_sysTimeMs + "," + _odo + "," + _soc + ","
                 + _socMin + "," + _socMax + "," + _soh + "," + _batTemp + ","
                 + _ambientTemp + "," + _power + "," + _amp + "," + _volt + ","
                 + _auxBat + "," + _chargingConnection.getName() + "," + _isCharging
