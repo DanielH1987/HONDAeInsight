@@ -45,7 +45,7 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
 
     public static final int CAN_BUS_SCAN_INTERVALL = 2000;
     public static final int WAIT_FOR_NEW_MESSAGE_TIMEOUT = 1000;
-    public static final int WAIT_TIME_BETWEEN_COMMAND_SENDS_MS = 50;
+    public static final int WAIT_TIME_BETWEEN_COMMAND_SENDS_MS = 80;
     public static final String VIN_ID = "1862F190";
     public static final String AMBIENT_ID = "39627028";
     public static final String SOH_ID = "F6622021";
@@ -85,6 +85,7 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
             "ATFCSH18DA60F1",
             "ATCRA18DAF160",
             "227028", //AMBIENT
+            "2270229", //ODO
             "ATSHDA15F1",
             "ATFCSH18DA15F1",
             "ATCRA18DAF115",
@@ -94,10 +95,6 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
             "ATFCSH18DA01F1",
             "ATCRA18DAF101",
             "22202A", // BATTTEMP
-            "ATSHDA60F1",
-            "ATFCSH18DA60F1",
-            "ATCRA18DAF160",
-            "2270229", //ODO
             "ATRV" // AUX BAT
     ));
 
@@ -121,9 +118,7 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
     private double _elevation;
     private ChargingConnection _chargingConnection;
     private boolean _isCharging;
-
     private PrintWriter _logFileWriter;
-
     private SharedPreferences _preferences;
     private long _sysTimeMs;
     private long _epoch, _lastEpoch;
@@ -399,7 +394,6 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
     }
 
     private void sendDataToIternoAPI() { //Send data to Iterno API
-
         try {
             final String requestString = Thread.currentThread().getName();
             final URL url = new URL(requestString);
@@ -412,7 +406,7 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
             while ((responseLine = br.readLine()) != null) {
                 response.append(responseLine.trim());
             }
-            setText(_messageText, response.toString());
+            setText(_messageText, _messageText.getText() + " " + response.toString());
         } catch (IOException e) {
             if (e.getMessage() != null) {
                 setText(_messageText, e.getMessage());
@@ -420,7 +414,6 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
                 setText(_messageText, "unexpected Exception at Iternio API");
             }
         }
-
     }
 
     private void checkExternalMedia() {
