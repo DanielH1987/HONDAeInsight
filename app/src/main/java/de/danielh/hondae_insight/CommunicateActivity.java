@@ -11,7 +11,7 @@ import android.location.LocationManager;
 import android.os.Bundle;
 import android.os.Environment;
 import android.text.TextUtils;
-import android.util.Log;
+//import android.util.Log;
 import android.view.MenuItem;
 import android.view.WindowManager;
 import android.widget.Button;
@@ -531,15 +531,15 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
             File logFile = new File(this.getExternalMediaDirs()[1], _vin + "-" + sdf.format(now) + ".csv");
 
             logFile.createNewFile();
-            Log.d("FILE", logFile + " " + logFile.exists());
+            //Log.d("FILE", logFile + " " + logFile.exists());
 
             _logFileWriter = new PrintWriter(logFile);
             _logFileWriter.println(LOG_FILE_HEADER);
 
         } catch (Exception e) {
-            Log.d("EXCEPTION", e.getMessage());
+            //Log.d("EXCEPTION", e.getMessage());
             for (StackTraceElement element : e.getStackTrace()) {
-                Log.d("EXCEPTION", element.toString());
+            //    Log.d("EXCEPTION", element.toString());
 
             }
         }
