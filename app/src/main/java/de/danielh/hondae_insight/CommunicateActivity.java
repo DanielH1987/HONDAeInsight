@@ -43,9 +43,9 @@ import javax.net.ssl.HttpsURLConnection;
 
 public class CommunicateActivity extends AppCompatActivity implements LocationListener {
 
-    public static final int CAN_BUS_SCAN_INTERVALL = 2000;
+    public static final int CAN_BUS_SCAN_INTERVALL = 1000;
     public static final int WAIT_FOR_NEW_MESSAGE_TIMEOUT = 1000;
-    public static final int WAIT_TIME_BETWEEN_COMMAND_SENDS_MS = 80;
+    public static final int WAIT_TIME_BETWEEN_COMMAND_SENDS_MS = 70;
     public static final String VIN_ID = "1862F190";
     public static final String AMBIENT_ID = "39627028";
     public static final String SOH_ID = "F6622021";
@@ -236,18 +236,19 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
                     Thread.sleep(WAIT_TIME_BETWEEN_COMMAND_SENDS_MS);
                 }
             }
+
+            if (_carConnected) {
+                Thread.sleep(WAIT_FOR_NEW_MESSAGE_TIMEOUT);
+                openNewFileForWriting();
+                loop();
+            } else {
+                setText(_messageText, "CAN not responding...");
+                _viewModel.disconnect();
+            }
         } catch (InterruptedException e) {
             //Log.d("STATE", e.getMessage());
             throw new RuntimeException(e);
         }
-        if (_carConnected) {
-            openNewFileForWriting();
-            loop();
-        } else {
-            setText(_messageText, "CAN not responding...");
-            _viewModel.disconnect();
-        }
-
     }
 
     private void loop() { //CAN messages loop
@@ -323,7 +324,7 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
                             _viewModel.setNewMessageProcessed();
                         }
                     }
-                    if (command.length() <= 6) {
+                    if (command.length() <= 7) {
                         Thread.sleep(WAIT_TIME_BETWEEN_COMMAND_SENDS_MS);
                     }
                 }
@@ -539,7 +540,7 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
         } catch (Exception e) {
             //Log.d("EXCEPTION", e.getMessage());
             for (StackTraceElement element : e.getStackTrace()) {
-            //    Log.d("EXCEPTION", element.toString());
+                //    Log.d("EXCEPTION", element.toString());
 
             }
         }
