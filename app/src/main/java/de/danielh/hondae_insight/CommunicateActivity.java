@@ -45,7 +45,7 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
 
     public static final int CAN_BUS_SCAN_INTERVALL = 1000;
     public static final int WAIT_FOR_NEW_MESSAGE_TIMEOUT = 1000;
-    public static final int WAIT_TIME_BETWEEN_COMMAND_SENDS_MS = 70;
+    public static final int WAIT_TIME_BETWEEN_COMMAND_SENDS_MS = 50;
     public static final String VIN_ID = "1862F190";
     public static final String AMBIENT_ID = "39627028";
     public static final String SOH_ID = "F6622021";
@@ -268,7 +268,7 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
                                 _newMessage++;
                             } else if (messageID.equals(SOH_ID)) {
                                 _soh = Integer.parseInt(message.substring(198, 202), 16) / 100.0;
-                                _amp = Math.round((Integer.valueOf(message.substring(280, 284), 16).shortValue() / 32.0) * 100.0) / 100.0;
+                                _amp = Math.round((Integer.valueOf(message.substring(280, 284), 16).shortValue() / 36.0) * 100.0) / 100.0;
                                 _volt = Integer.parseInt(message.substring(76, 80), 16) / 10.0;
                                 _power = Math.round(_amp * _volt / 1000.0 * 100.0) / 100.0;
                                 _newMessage++;
