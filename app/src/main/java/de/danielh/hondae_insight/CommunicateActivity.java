@@ -50,7 +50,7 @@ import javax.net.ssl.HttpsURLConnection;
 public class CommunicateActivity extends AppCompatActivity implements LocationListener {
 
     public static final int CAN_BUS_SCAN_INTERVALL = 1000;
-    public static final int WAIT_FOR_NEW_MESSAGE_TIMEOUT = 100;
+    public static final int WAIT_FOR_NEW_MESSAGE_TIMEOUT = 250;
     public static final int WAIT_TIME_BETWEEN_COMMAND_SENDS_MS = 50;
     public static final String VIN_ID = "1862F190";
     public static final String AMBIENT_ID = "39627028";
@@ -285,7 +285,6 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
                         if (message.matches("\\d+\\.\\dV")) { //Aux Bat Voltage
                             _auxBat = Double.parseDouble(message.substring(0, message.length() - 1));
                             setText(_auxBatText, message);
-                            _viewModel.setNewMessageProcessed();
                         }
                     }
                 }
