@@ -2,9 +2,13 @@ package de.danielh.hondae_insight;
 
 import static de.danielh.hondae_insight.IternioApiKeyStore.ITERNIO_API_KEY;
 
+import android.annotation.SuppressLint;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.graphics.BitmapFactory;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
@@ -24,6 +28,8 @@ import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
+import androidx.core.app.NotificationCompat;
+import androidx.core.app.NotificationManagerCompat;
 import androidx.core.content.ContextCompat;
 import androidx.lifecycle.ViewModelProviders;
 
@@ -44,7 +50,7 @@ import javax.net.ssl.HttpsURLConnection;
 public class CommunicateActivity extends AppCompatActivity implements LocationListener {
 
     public static final int CAN_BUS_SCAN_INTERVALL = 1000;
-    public static final int WAIT_FOR_NEW_MESSAGE_TIMEOUT = 1000;
+    public static final int WAIT_FOR_NEW_MESSAGE_TIMEOUT = 100;
     public static final int WAIT_TIME_BETWEEN_COMMAND_SENDS_MS = 50;
     public static final String VIN_ID = "1862F190";
     public static final String AMBIENT_ID = "39627028";
@@ -58,7 +64,11 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
     private static final String AUTO_RECONNECT_SWITCH = "autoReconnectSwitch";
     private static final int MAX_RETRY = 5;
 
+    private static final String NOTIFICATION_CHANNEL_ID = "SoC";
+    private static final int NOTIFICATION_ID = 23;
+
     private final ArrayList<String> _connectionCommands = new ArrayList<>(Arrays.asList(
+            "ATRV",
             "ATWS",
             "ATE0",
             "ATSP7",
@@ -121,7 +131,7 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
     private PrintWriter _logFileWriter;
     private SharedPreferences _preferences;
     private long _sysTimeMs;
-    private long _epoch, _lastEpoch, _lastEpochBatTemp;
+    private long _epoch, _lastEpoch, _lastEpochBatTemp, _lastEpochNotification;
     private Button _connectButton;
     private CommunicateViewModel _viewModel;
     private volatile boolean _loopRunning = false;
@@ -132,6 +142,8 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
     private boolean _carConnected = false;
     private byte _newMessage;
 
+    NotificationCompat.Builder _notificationBuilder;
+    NotificationManagerCompat _notificationManagerCompat;
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         // Setup our activity
@@ -152,6 +164,27 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
         }
 
         _preferences = getPreferences(MODE_PRIVATE);
+
+        _notificationBuilder = new NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
+                .setSmallIcon(R.mipmap.e_logo)
+                .setContentTitle("e Insight")
+                .setContentText("Start")
+                .setOngoing(true)
+                .setPriority(NotificationCompat.PRIORITY_DEFAULT);
+
+        createNotificationChannel();
+        if (ActivityCompat.checkSelfPermission(this, android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            // TODO: Consider calling
+            //    ActivityCompat#requestPermissions
+            // here to request the missing permissions, and then overriding
+            //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
+            //                                          int[] grantResults)
+            // to handle the case where the user grants the permission. See the documentation
+            // for ActivityCompat#requestPermissions for more details.
+            return;
+        }
+        _notificationManagerCompat = NotificationManagerCompat.from(this);
+        _notificationManagerCompat.notify(NOTIFICATION_ID, _notificationBuilder.build());
 
         // Setup our Views
         _connectionText = findViewById(R.id.communicate_connection_text);
@@ -212,6 +245,21 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
         checkExternalMedia();
     }
 
+    private void createNotificationChannel() {
+        // Create the NotificationChannel, but only on API 26+ because
+        // the NotificationChannel class is not in the Support Library.
+
+        CharSequence name = getString(R.string.channel_name);
+        String description = getString(R.string.channel_description);
+        int importance = NotificationManager.IMPORTANCE_DEFAULT;
+        NotificationChannel channel = new NotificationChannel(NOTIFICATION_CHANNEL_ID, name, importance);
+        channel.setDescription(description);
+        // Register the channel with the system; you can't change the importance
+        // or other notification behaviors after this.
+        NotificationManager notificationManager = getSystemService(NotificationManager.class);
+        notificationManager.createNotificationChannel(channel);
+    }
+
     @Override
     protected void onDestroy() {
         super.onDestroy();
@@ -223,14 +271,22 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
                 synchronized (_viewModel.getNewMessageParsed()) {
                     _viewModel.sendMessage(command + "\n\r");
                     _viewModel.getNewMessageParsed().wait(WAIT_FOR_NEW_MESSAGE_TIMEOUT);
-                    if (_viewModel.isNewMessage() && _viewModel.getMessageID().equals(VIN_ID)) {
-                        parseVIN(_viewModel.getMessage());
-                        setText(_vinText, _vin);
-                        _carConnected = true;
-                        _viewModel.setNewMessageProcessed();
-                    } else if (_viewModel.isNewMessage()) {
-                        setText(_messageText, _viewModel.getMessage());
-                        _viewModel.setNewMessageProcessed();
+                    if (_viewModel.isNewMessage()) {
+                        final String message = _viewModel.getMessage();
+                        if (_viewModel.isNewMessage() && _viewModel.getMessageID().equals(VIN_ID)) {
+                            parseVIN(message);
+                            setText(_vinText, _vin);
+                            _carConnected = true;
+                            _viewModel.setNewMessageProcessed();
+                        } else if (_viewModel.isNewMessage()) {
+                            setText(_messageText, message);
+                            _viewModel.setNewMessageProcessed();
+                        }
+                        if (message.matches("\\d+\\.\\dV")) { //Aux Bat Voltage
+                            _auxBat = Double.parseDouble(message.substring(0, message.length() - 1));
+                            setText(_auxBatText, message);
+                            _viewModel.setNewMessageProcessed();
+                        }
                     }
                 }
                 if (command.length() <= 6) {
@@ -252,6 +308,7 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
         }
     }
 
+    @SuppressLint("MissingPermission")
     private void loop() { //CAN messages loop
         _loopRunning = true;
         try {
@@ -355,6 +412,11 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
 
                 if (_newMessage > 4) {
                     setText(_messageText, String.valueOf(_epoch));
+                    if(_lastEpochNotification + 10 < _epoch) {
+                        _notificationBuilder.setContentText("SoC " + String.valueOf(_soc) + "%");
+                        _notificationManagerCompat.notify(NOTIFICATION_ID, _notificationBuilder.build());
+                        _lastEpochNotification = _epoch;
+                    }
                     writeLineToLogFile();
                     if (_sendDataToIternioRunning && _lastEpoch + 1 < _epoch) {
                         final String requestString = "https://api.iternio.com/1/tlm/send?api_key=" + ITERNIO_API_KEY +

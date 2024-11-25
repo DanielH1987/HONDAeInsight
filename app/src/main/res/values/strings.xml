@@ -36,5 +36,7 @@
     <string name="range">Range (dash / min / max)</string>
     <string name="send_data">Send Data to ABRP API</string>
     <string name="auto_reconnect">Auto reconnect</string>
+    <string name="channel_name">Test-Channel</string>
+    <string name="channel_description">Test-Description</string>
 
 </resources>
