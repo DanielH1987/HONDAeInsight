@@ -351,6 +351,16 @@
                         android:textAppearance="@style/TextAppearance.AppCompat.Large" />
 
                     <TextView
+                        android:id="@+id/communicate_battemp_delta"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="00.0K/min"
+                        android:textAlignment="textEnd"
+                        android:textAppearance="@style/TextAppearance.AppCompat.Large"
+                        android:textStyle="bold" />
+
+                    <TextView
                         android:id="@+id/communicate_battemp"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"

@@ -100,13 +100,13 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
 
     private final String LOG_FILE_HEADER = "sysTimeMs,ODO,SoC (dash),SoC (min),SoC (max),SoH,Battemp,Ambienttemp,kW,Amp,Volt,AuxBat,Connection,Charging,Speed,Lat,Lon";
     private TextView _connectionText, _vinText, _messageText, _socMinText, _socMaxText, _socDeltaText,
-            _socDashText, _batTempText, _ambientTempText, _sohText, _kwText, _ampText, _voltText, _auxBatText, _odoText,
+            _socDashText, _batTempText, _batTempDeltaText, _ambientTempText, _sohText, _kwText, _ampText, _voltText, _auxBatText, _odoText,
             _rangeText, _chargingText, _speedText, _latText, _lonText;
     private EditText _abrpUserTokenText;
     private Switch _iternioSendToAPISwitch, _autoReconnectSwitch;
     private CheckBox _isChargingCheckBox;
 
-    private double _soc, _socMin, _socMax, _socDelta, _soh, _speed, _power, _batTemp, _amp, _volt, _auxBat;
+    private double _soc, _socMin, _socMax, _socDelta, _soh, _speed, _power, _batTemp, _batTempOld, _amp, _volt, _auxBat;
 
     private byte _ambientTemp;
     private final double[] _socHistory = new double[RANGE_ESTIMATE_WINDOW_5KM + 1];
@@ -121,7 +121,7 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
     private PrintWriter _logFileWriter;
     private SharedPreferences _preferences;
     private long _sysTimeMs;
-    private long _epoch, _lastEpoch;
+    private long _epoch, _lastEpoch, _lastEpochBatTemp;
     private Button _connectButton;
     private CommunicateViewModel _viewModel;
     private volatile boolean _loopRunning = false;
@@ -167,6 +167,7 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
         _chargingText = findViewById(R.id.communicate_charging_connection);
         _isChargingCheckBox = findViewById(R.id.communicate_is_charging);
         _batTempText = findViewById(R.id.communicate_battemp);
+        _batTempDeltaText = findViewById(R.id.communicate_battemp_delta);
         _ambientTempText = findViewById(R.id.communicate_ambient_temp);
         _sohText = findViewById(R.id.communicate_soh);
         _kwText = findViewById(R.id.communicate_kw);
@@ -328,7 +329,7 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
                         Thread.sleep(WAIT_TIME_BETWEEN_COMMAND_SENDS_MS);
                     }
                 }
-
+                _epoch = _sysTimeMs / 1000;
                 setText(_ambientTempText, _ambientTemp + ".0°C");
                 setText(_sohText, _soh + "%");
                 setText(_ampText, _amp + "A");
@@ -341,12 +342,17 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
                 setText(_chargingText, _chargingConnection.getName());
                 setChecked(_isChargingCheckBox, _isCharging);
                 setText(_batTempText, _batTemp + "°C");
+                if(_lastEpochBatTemp + 60 < _epoch) {
+                    setText(_batTempDeltaText, Math.round((_batTemp - _batTempOld)*10) / 10 + "K/min");
+                    _lastEpochBatTemp = _epoch;
+                    _batTempOld = _batTemp;
+                }
                 setText(_odoText, _odo + "km");
 
                 setText(_speedText, _speed + "km/h");
                 setText(_latText, _lat);
                 setText(_lonText, _lon);
-                _epoch = _sysTimeMs / 1000;
+
                 if (_newMessage > 4) {
                     setText(_messageText, String.valueOf(_epoch));
                     writeLineToLogFile();
