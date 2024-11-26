@@ -68,7 +68,6 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
     private static final int NOTIFICATION_ID = 23;
 
     private final ArrayList<String> _connectionCommands = new ArrayList<>(Arrays.asList(
-            "ATRV",
             "ATWS",
             "ATE0",
             "ATSP7",
@@ -76,6 +75,7 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
             "ATH1",
             "ATL0",
             "ATS0",
+            "ATRV",
             "ATAL",
             "ATCAF1",
             "ATSHDA01F1",
