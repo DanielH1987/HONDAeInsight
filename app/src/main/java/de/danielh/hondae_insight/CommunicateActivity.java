@@ -44,6 +44,7 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
+import java.util.Locale;
 
 import javax.net.ssl.HttpsURLConnection;
 
@@ -111,9 +112,9 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
     private final String LOG_FILE_HEADER = "sysTimeMs,ODO,SoC (dash),SoC (min),SoC (max),SoH,Battemp,Ambienttemp,kW,Amp,Volt,AuxBat,Connection,Charging,Speed,Lat,Lon";
     private TextView _connectionText, _vinText, _messageText, _socMinText, _socMaxText, _socDeltaText,
             _socDashText, _batTempText, _batTempDeltaText, _ambientTempText, _sohText, _kwText, _ampText, _voltText, _auxBatText, _odoText,
-            _rangeText, _chargingText, _speedText, _latText, _lonText;
+            _rangeText, _chargingText, _speedText, _latText, _lonText, _apiStatusText;
     private EditText _abrpUserTokenText;
-    private Switch _iternioSendToAPISwitch, _autoReconnectSwitch;
+    private Switch _iternioSendToAPISwitch;
     private CheckBox _isChargingCheckBox;
 
     private double _soc, _socMin, _socMax, _socDelta, _soh, _speed, _power, _batTemp, _batTempOld, _amp, _volt, _auxBat;
@@ -131,14 +132,12 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
     private PrintWriter _logFileWriter;
     private SharedPreferences _preferences;
     private long _sysTimeMs;
-    private long _epoch, _lastEpoch, _lastEpochBatTemp, _lastEpochNotification;
+    private long _epoch, _lastEpoch, _lastEpochBatTemp, _lastEpochNotification, _lastEpochSuccessfulApiSend;
     private Button _connectButton;
     private CommunicateViewModel _viewModel;
     private volatile boolean _loopRunning = false;
     private volatile boolean _sendDataToIternioRunning = false;
-
     private volatile int _retries = 0;
-    private volatile boolean _isAutoReconnect = false;
     private boolean _carConnected = false;
     private byte _newMessage;
 
@@ -209,6 +208,7 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
         _auxBatText = findViewById(R.id.communicate_aux_bat);
         _odoText = findViewById(R.id.communicate_odo);
         _rangeText = findViewById(R.id.communicate_range);
+        _apiStatusText = findViewById(R.id.communicate_api_status);
 
         _abrpUserTokenText = findViewById(R.id.communicate_abrp_user_token);
         _iternioSendToAPISwitch = findViewById(R.id.communicate_iternio_send_to_api);
@@ -218,9 +218,6 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
         _abrpUserTokenText.setText(_preferences.getString(USER_TOKEN_PREFS, "User-Token"));
 
         _connectButton = findViewById(R.id.communicate_connect);
-        _autoReconnectSwitch = findViewById(R.id.communicate_auto_reconnect);
-        _autoReconnectSwitch.setOnCheckedChangeListener(((buttonView, isChecked) -> handleAutoReconnectSwitch(isChecked)));
-        _autoReconnectSwitch.setChecked(_preferences.getBoolean(AUTO_RECONNECT_SWITCH, false));
 
         // Start observing the data sent to us by the ViewModel
         _viewModel.getConnectionStatus().observe(this, this::onConnectionStatus);
@@ -313,78 +310,7 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
         try {
             while (_loopRunning) {
                 _sysTimeMs = System.currentTimeMillis();
-                for (String command : _loopCommands) {
-                    synchronized (_viewModel.getNewMessageParsed()) {
-                        _viewModel.sendMessage(command + "\n\r");
-                        _viewModel.getNewMessageParsed().wait(WAIT_FOR_NEW_MESSAGE_TIMEOUT);
-                        if (_viewModel.isNewMessage()) {
-                            final String message = _viewModel.getMessage();
-                            final String messageID = _viewModel.getMessageID();
-                            if (messageID.equals(AMBIENT_ID)) {
-                                _ambientTemp = Integer.valueOf(message.substring(42, 44), 16).byteValue();
-                                _newMessage++;
-                            } else if (messageID.equals(SOH_ID)) {
-                                _soh = Integer.parseInt(message.substring(198, 202), 16) / 100.0;
-                                _amp = Math.round((Integer.valueOf(message.substring(280, 284), 16).shortValue() / 36.0) * 100.0) / 100.0;
-                                _volt = Integer.parseInt(message.substring(76, 80), 16) / 10.0;
-                                _power = Math.round(_amp * _volt / 1000.0 * 100.0) / 100.0;
-                                _newMessage++;
-                            } else if (messageID.equals(SOC_ID)) {
-                                _socMin = Integer.parseInt(message.substring(142, 146), 16) / 100.0;
-                                _socMax = Integer.parseInt(message.substring(138, 142), 16) / 100.0;
-                                _socDelta = Math.round((_socMax - _socMin) * 100.0) / 100.0;
-                                _soc = Integer.parseInt(message.substring(156, 160), 16) / 100.0;
-                                _isCharging = message.charAt(161) == '1';
-                                switch (message.substring(277, 278)) {
-                                    case "2":
-                                        _chargingConnection = ChargingConnection.AC;
-                                        break;
-                                    case "3":
-                                        _chargingConnection = ChargingConnection.DC;
-                                        break;
-                                    default:
-                                        _chargingConnection = ChargingConnection.NC;
-                                }
-                                _newMessage++;
-                            } else if (messageID.equals(BATTEMP_ID)) {
-                                _batTemp = Integer.valueOf(message.substring(410, 414), 16).shortValue() / 10.0;
-                                _newMessage++;
-                            } else if (messageID.equals(ODO_ID)) {
-                                _odo = Integer.parseInt(message.substring(18, 26), 16);
-                                if (_lastOdo < _odo) {
-                                    _lastOdo = _odo;
-                                    _socHistory[_socHistoryPosition] = _soc;
-                                    _socMinHistory[_socHistoryPosition] = _socMin;
-                                    _socMaxHistory[_socHistoryPosition] = _socMax;
-                                    _socHistoryPosition = (_socHistoryPosition + 1) % (RANGE_ESTIMATE_WINDOW_5KM + 1);
-                                    //Should be _socHistoryPosition - RANGE_ESTIMATE_WINDOW
-                                    //but Java keeps the negative sign
-                                    double socDelta = _socHistory[(_socHistoryPosition + 1) % (RANGE_ESTIMATE_WINDOW_5KM + 1)] - _soc;
-                                    double socMinDelta = _socMinHistory[(_socHistoryPosition + 1) % (RANGE_ESTIMATE_WINDOW_5KM + 1)] - _socMin;
-                                    double socMaxDelta = _socMaxHistory[(_socHistoryPosition + 1) % (RANGE_ESTIMATE_WINDOW_5KM + 1)] - _socMax;
-                                    long socRange = Math.round((_soc / socDelta) * RANGE_ESTIMATE_WINDOW_5KM);
-                                    long socMinRange = Math.round((_socMin / socMinDelta) * RANGE_ESTIMATE_WINDOW_5KM);
-                                    long socMaxRange = Math.round((_socMax / socMaxDelta) * RANGE_ESTIMATE_WINDOW_5KM);
-                                    if (socRange >= 0 || socMinRange >= 0 || socMaxRange >= 0) {
-                                        setText(_rangeText, socRange + "km / " + socMinRange + "km / " + socMaxRange + "km");
-                                    } else {
-                                        setText(_rangeText, "---km / ---km / ---km");
-                                    }
-                                }
-                                _newMessage++;
-                            } else if (message.matches("\\d+\\.\\dV")) { //Aux Bat Voltage
-                                _auxBat = Double.parseDouble(message.substring(0, message.length() - 1));
-                                setText(_auxBatText, message);
-                            } else {
-                                //setText(_messageText, message);
-                            }
-                            _viewModel.setNewMessageProcessed();
-                        }
-                    }
-                    if (command.length() <= 7) {
-                        Thread.sleep(WAIT_TIME_BETWEEN_COMMAND_SENDS_MS);
-                    }
-                }
+                loopMessagesToVariables();
                 _epoch = _sysTimeMs / 1000;
                 setText(_ambientTempText, _ambientTemp + ".0°C");
                 setText(_sohText, _soh + "%");
@@ -398,8 +324,10 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
                 setText(_chargingText, _chargingConnection.getName());
                 setChecked(_isChargingCheckBox, _isCharging);
                 setText(_batTempText, _batTemp + "°C");
-                if(_lastEpochBatTemp + 60 < _epoch) {
-                    setText(_batTempDeltaText, Math.round((_batTemp - _batTempOld)*10) / 10 + "K/min");
+                if(Math.abs(_batTempOld - _batTemp) > 0) {
+                    double deltaTemp = _batTemp - _batTempOld;
+                    long deltaTimeMin = (_epoch - _lastEpochBatTemp) / 3600;
+                    setText(_batTempDeltaText, String.format(Locale.GERMAN, "%1$.2f K/min", deltaTemp / deltaTimeMin));
                     _lastEpochBatTemp = _epoch;
                     _batTempOld = _batTemp;
                 }
@@ -461,6 +389,81 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
         _carConnected = false;
     }
 
+    private void loopMessagesToVariables() throws InterruptedException {
+        for (String command : _loopCommands) {
+            synchronized (_viewModel.getNewMessageParsed()) {
+                _viewModel.sendMessage(command + "\n\r");
+                _viewModel.getNewMessageParsed().wait(WAIT_FOR_NEW_MESSAGE_TIMEOUT);
+                if (_viewModel.isNewMessage()) {
+                    final String message = _viewModel.getMessage();
+                    final String messageID = _viewModel.getMessageID();
+                    if (messageID.equals(AMBIENT_ID)) {
+                        _ambientTemp = Integer.valueOf(message.substring(42, 44), 16).byteValue();
+                        _newMessage++;
+                    } else if (messageID.equals(SOH_ID)) {
+                        _soh = Integer.parseInt(message.substring(198, 202), 16) / 100.0;
+                        _amp = Math.round((Integer.valueOf(message.substring(280, 284), 16).shortValue() / 36.0) * 100.0) / 100.0;
+                        _volt = Integer.parseInt(message.substring(76, 80), 16) / 10.0;
+                        _power = Math.round(_amp * _volt / 1000.0 * 100.0) / 100.0;
+                        _newMessage++;
+                    } else if (messageID.equals(SOC_ID)) {
+                        _socMin = Integer.parseInt(message.substring(142, 146), 16) / 100.0;
+                        _socMax = Integer.parseInt(message.substring(138, 142), 16) / 100.0;
+                        _socDelta = Math.round((_socMax - _socMin) * 100.0) / 100.0;
+                        _soc = Integer.parseInt(message.substring(156, 160), 16) / 100.0;
+                        _isCharging = message.charAt(161) == '1';
+                        switch (message.substring(277, 278)) {
+                            case "2":
+                                _chargingConnection = ChargingConnection.AC;
+                                break;
+                            case "3":
+                                _chargingConnection = ChargingConnection.DC;
+                                break;
+                            default:
+                                _chargingConnection = ChargingConnection.NC;
+                        }
+                        _newMessage++;
+                    } else if (messageID.equals(BATTEMP_ID)) {
+                        _batTemp = Integer.valueOf(message.substring(410, 414), 16).shortValue() / 10.0;
+                        _newMessage++;
+                    } else if (messageID.equals(ODO_ID)) {
+                        _odo = Integer.parseInt(message.substring(18, 26), 16);
+                        if (_lastOdo < _odo) {
+                            _lastOdo = _odo;
+                            _socHistory[_socHistoryPosition] = _soc;
+                            _socMinHistory[_socHistoryPosition] = _socMin;
+                            _socMaxHistory[_socHistoryPosition] = _socMax;
+                            _socHistoryPosition = (_socHistoryPosition + 1) % (RANGE_ESTIMATE_WINDOW_5KM + 1);
+                            //Should be _socHistoryPosition - RANGE_ESTIMATE_WINDOW
+                            //but Java keeps the negative sign
+                            double socDelta = _socHistory[(_socHistoryPosition + 1) % (RANGE_ESTIMATE_WINDOW_5KM + 1)] - _soc;
+                            double socMinDelta = _socMinHistory[(_socHistoryPosition + 1) % (RANGE_ESTIMATE_WINDOW_5KM + 1)] - _socMin;
+                            double socMaxDelta = _socMaxHistory[(_socHistoryPosition + 1) % (RANGE_ESTIMATE_WINDOW_5KM + 1)] - _socMax;
+                            long socRange = Math.round((_soc / socDelta) * RANGE_ESTIMATE_WINDOW_5KM);
+                            long socMinRange = Math.round((_socMin / socMinDelta) * RANGE_ESTIMATE_WINDOW_5KM);
+                            long socMaxRange = Math.round((_socMax / socMaxDelta) * RANGE_ESTIMATE_WINDOW_5KM);
+                            if (socRange >= 0 || socMinRange >= 0 || socMaxRange >= 0) {
+                                setText(_rangeText, socRange + "km / " + socMinRange + "km / " + socMaxRange + "km");
+                            } else {
+                                setText(_rangeText, "---km / ---km / ---km");
+                            }
+                        }
+                        _newMessage++;
+                    } else if (message.matches("\\d+\\.\\dV")) { //Aux Bat Voltage
+                        _auxBat = Double.parseDouble(message.substring(0, message.length() - 1));
+                        setText(_auxBatText, message);
+                    } else {
+                        //setText(_messageText, message);
+                    }
+                    _viewModel.setNewMessageProcessed();
+                }
+            }
+            if (command.length() <= 7) {
+                Thread.sleep(WAIT_TIME_BETWEEN_COMMAND_SENDS_MS);
+            }
+        }
+    }
+
     private void sendDataToIternoAPI() { //Send data to Iterno API
         try {
             final String requestString = Thread.currentThread().getName();
@@ -474,8 +477,18 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
             while ((responseLine = br.readLine()) != null) {
                 response.append(responseLine.trim());
             }
-            setText(_messageText, _messageText.getText() + " " + response.toString());
+            if (response.toString().contains("ok")) {
+                _lastEpochSuccessfulApiSend = _epoch;
+                setText(_apiStatusText, "\uD83D\uDFE2");
+            }
+            //setText(_messageText, _messageText.getText() + " " + response.toString());
         } catch (IOException e) {
+            if (_epoch - _lastEpochSuccessfulApiSend > 9) {
+                setText(_apiStatusText, "\uD83D\uDD34");
+            } else if (_epoch - _lastEpochSuccessfulApiSend > 1) {
+                setText(_apiStatusText, "\uD83D\uDFE1");
+            }
+
             if (e.getMessage() != null) {
                 setText(_messageText, e.getMessage());
             } else {
@@ -522,13 +535,6 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
         if (!TextUtils.isEmpty(abrpuserTokenTextString)) {
             edit.putString(USER_TOKEN_PREFS, abrpuserTokenTextString);
         }
-        edit.apply();
-    }
-
-    private void handleAutoReconnectSwitch(boolean isChecked) {
-        _isAutoReconnect = isChecked;
-        SharedPreferences.Editor edit = _preferences.edit();
-        edit.putBoolean(AUTO_RECONNECT_SWITCH, isChecked);
         edit.apply();
     }
 
@@ -582,11 +588,6 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
                     _viewModel.connect();
                 } else {
                     _viewModel.disconnect();
-                }
-
-            case AUTO_RECONNECT:
-                if (_autoReconnectSwitch.isChecked()) {
-                    _viewModel.connect();
                 }
         }
     }

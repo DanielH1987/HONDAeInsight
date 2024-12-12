@@ -200,7 +200,6 @@ public class CommunicateViewModel extends AndroidViewModel {
         Toast.makeText(getApplication(), messageResource, Toast.LENGTH_LONG).show();
         if (messageResource == R.string.message_send_error) {
             disconnect();
-            _connectionStatusData.postValue(ConnectionStatus.AUTO_RECONNECT);
         }
     }
 
@@ -251,6 +250,6 @@ public class CommunicateViewModel extends AndroidViewModel {
         DISCONNECTED,
         CONNECTING,
         CONNECTED,
-        AUTO_RECONNECT, RETRY
+        RETRY
     }
 }
