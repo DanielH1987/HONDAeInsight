@@ -143,6 +143,7 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
 
     NotificationCompat.Builder _notificationBuilder;
     NotificationManagerCompat _notificationManagerCompat;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         // Setup our activity
@@ -313,21 +314,22 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
                 loopMessagesToVariables();
                 _epoch = _sysTimeMs / 1000;
                 setText(_ambientTempText, _ambientTemp + ".0°C");
-                setText(_sohText, _soh + "%");
-                setText(_ampText, _amp + "A");
-                setText(_voltText, _volt + "/" + Math.round(_volt / 0.96) / 100.0 + "V");
-                setText(_kwText, _power + "kW");
-                setText(_socMinText, _socMin + "%");
-                setText(_socMaxText, _socMax + "%");
-                setText(_socDeltaText, _socDelta + "%");
-                setText(_socDashText, _soc + "%");
+                setText(_sohText, String.format(Locale.ENGLISH, "%1$05.2f%%", _soh));
+                setText(_ampText, String.format(Locale.ENGLISH, "%1$06.2fA", _amp));
+                setText(_voltText, String.format(Locale.ENGLISH, "%1$.1f/%2$.2fV", _volt, _volt / 96));
+                setText(_kwText, String.format(Locale.ENGLISH, "%1$05.1fkW", _power));
+                ;
+                setText(_socMinText, String.format(Locale.ENGLISH, "%1$05.2f%%", _socMin));
+                setText(_socMaxText, String.format(Locale.ENGLISH, "%1$05.2f%%", _socMax));
+                setText(_socDeltaText, String.format(Locale.ENGLISH, "%1$05.2f%%", _socDelta));
+                setText(_socDashText, String.format(Locale.ENGLISH, "%1$05.2f%%", _soc));
                 setText(_chargingText, _chargingConnection.getName());
                 setChecked(_isChargingCheckBox, _isCharging);
                 setText(_batTempText, _batTemp + "°C");
-                if(Math.abs(_batTempOld - _batTemp) > 0) {
+                if (Math.abs(_batTempOld - _batTemp) > 0) {
                     double deltaTemp = _batTemp - _batTempOld;
                     long deltaTimeMin = (_epoch - _lastEpochBatTemp) / 3600;
-                    setText(_batTempDeltaText, String.format(Locale.GERMAN, "%1$.2f K/min", deltaTemp / deltaTimeMin));
+                    setText(_batTempDeltaText, String.format(Locale.ENGLISH, "%1$.2f K/min", deltaTemp / deltaTimeMin));
                     _lastEpochBatTemp = _epoch;
                     _batTempOld = _batTemp;
                 }
@@ -339,7 +341,7 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
 
                 if (_newMessage > 4) {
                     setText(_messageText, String.valueOf(_epoch));
-                    if(_lastEpochNotification + 10 < _epoch) {
+                    if (_lastEpochNotification + 10 < _epoch) {
                         _notificationBuilder.setContentText("SoC " + String.valueOf(_soc) + "%");
                         _notificationManagerCompat.notify(NOTIFICATION_ID, _notificationBuilder.build());
                         _lastEpochNotification = _epoch;
@@ -404,7 +406,7 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
                         _soh = Integer.parseInt(message.substring(198, 202), 16) / 100.0;
                         _amp = Math.round((Integer.valueOf(message.substring(280, 284), 16).shortValue() / 36.0) * 100.0) / 100.0;
                         _volt = Integer.parseInt(message.substring(76, 80), 16) / 10.0;
-                        _power = Math.round(_amp * _volt / 1000.0 * 100.0) / 100.0;
+                        _power = Math.round(_amp * _volt / 1000.0 * 10.0) / 10.0;
                         _newMessage++;
                     } else if (messageID.equals(SOC_ID)) {
                         _socMin = Integer.parseInt(message.substring(142, 146), 16) / 100.0;
@@ -443,7 +445,8 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
                             long socMinRange = Math.round((_socMin / socMinDelta) * RANGE_ESTIMATE_WINDOW_5KM);
                             long socMaxRange = Math.round((_socMax / socMaxDelta) * RANGE_ESTIMATE_WINDOW_5KM);
                             if (socRange >= 0 || socMinRange >= 0 || socMaxRange >= 0) {
-                                setText(_rangeText, socRange + "km / " + socMinRange + "km / " + socMaxRange + "km");
+                                setText(_rangeText, String.format(Locale.ENGLISH, "%1$03dkm / %2$03dkm / %3$03dkm", socRange, socMinRange, socMaxRange));
+                                //setText(_rangeText, socRange + "km / " + socMinRange + "km / " + socMaxRange + "km");
                             } else {
                                 setText(_rangeText, "---km / ---km / ---km");
                             }
