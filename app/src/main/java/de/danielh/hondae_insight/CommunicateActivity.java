@@ -265,6 +265,7 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
 
     private void connectCAN() { //initiate connection over CAN
         try {
+            setText(_apiStatusText, "⚪");
             for (String command : _connectionCommands) {
                 synchronized (_viewModel.getNewMessageParsed()) {
                     _viewModel.sendMessage(command + "\n\r");
@@ -321,14 +322,14 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
                 ;
                 setText(_socMinText, String.format(Locale.ENGLISH, "%1$05.2f%%", _socMin));
                 setText(_socMaxText, String.format(Locale.ENGLISH, "%1$05.2f%%", _socMax));
-                setText(_socDeltaText, String.format(Locale.ENGLISH, "%1$05.2f%%", _socDelta));
+                setText(_socDeltaText, String.format(Locale.ENGLISH, "%1$4.2f%%", _socDelta));
                 setText(_socDashText, String.format(Locale.ENGLISH, "%1$05.2f%%", _soc));
                 setText(_chargingText, _chargingConnection.getName());
                 setChecked(_isChargingCheckBox, _isCharging);
                 setText(_batTempText, _batTemp + "°C");
                 if (Math.abs(_batTempOld - _batTemp) > 0) {
                     double deltaTemp = _batTemp - _batTempOld;
-                    long deltaTimeMin = (_epoch - _lastEpochBatTemp) / 3600;
+                    double deltaTimeMin = (_epoch - _lastEpochBatTemp) / 3600.0;
                     setText(_batTempDeltaText, String.format(Locale.ENGLISH, "%1$.2f K/min", deltaTemp / deltaTimeMin));
                     _lastEpochBatTemp = _epoch;
                     _batTempOld = _batTemp;
