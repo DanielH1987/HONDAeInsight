@@ -184,7 +184,7 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
             return;
         }
         _notificationManagerCompat = NotificationManagerCompat.from(this);
-        _notificationManagerCompat.notify(NOTIFICATION_ID, _notificationBuilder.build());
+        //_notificationManagerCompat.notify(NOTIFICATION_ID, _notificationBuilder.build());
 
         // Setup our Views
         _connectionText = findViewById(R.id.communicate_connection_text);
