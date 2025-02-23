@@ -117,7 +117,7 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
     private Switch _iternioSendToAPISwitch;
     private CheckBox _isChargingCheckBox;
 
-    private double _soc, _socMin, _socMax, _socDelta, _soh, _speed, _power, _batTemp, _batTempOld, _amp, _volt, _auxBat;
+    private double _soc, _socMin, _socMax, _socDelta, _soh, _speed, _power, _batTemp, _batTempOld = -100.0, _amp, _volt, _auxBat;
 
     private byte _ambientTemp;
     private final double[] _socHistory = new double[RANGE_ESTIMATE_WINDOW_5KM + 1];
@@ -332,7 +332,7 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
                     double deltaTimeMin = (_epoch - _lastEpochBatTemp) / 60.0;
                     setText(_batTempDeltaText, String.format(Locale.ENGLISH, "%1$.2f K/min", deltaTemp / deltaTimeMin));
                     _lastEpochBatTemp = _epoch;
-                    _batTempOld = _batTemp;
+                    _batTempOld = (_batTemp + _batTempOld) / 2;
                 }
                 setText(_odoText, _odo + "km");
 
@@ -428,6 +428,9 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
                         _newMessage++;
                     } else if (messageID.equals(BATTEMP_ID)) {
                         _batTemp = Integer.valueOf(message.substring(410, 414), 16).shortValue() / 10.0;
+                        if(_batTempOld == -100) {
+                            _batTempOld = _batTemp;
+                        }
                         _newMessage++;
                     } else if (messageID.equals(ODO_ID)) {
                         _odo = Integer.parseInt(message.substring(18, 26), 16);
