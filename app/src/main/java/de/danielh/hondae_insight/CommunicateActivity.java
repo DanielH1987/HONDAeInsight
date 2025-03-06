@@ -2,7 +2,6 @@ package de.danielh.hondae_insight;
 
 import static de.danielh.hondae_insight.IternioApiKeyStore.ITERNIO_API_KEY;
 
-import android.annotation.SuppressLint;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.content.Context;
@@ -25,7 +24,6 @@ import android.widget.EditText;
 import android.widget.Switch;
 import android.widget.TextView;
 
-import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.app.NotificationCompat;
@@ -117,12 +115,13 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
     private Switch _iternioSendToAPISwitch;
     private CheckBox _isChargingCheckBox;
 
-    private double _soc, _socMin, _socMax, _socDelta, _soh, _speed, _power, _batTemp, _batTempOld = Double.MIN_VALUE, _amp, _volt, _auxBat;
+    private double _soc, _socMin, _socMax, _socDelta, _soh, _speed, _power, _batTemp, _amp, _volt, _auxBat;
 
     private byte _ambientTemp;
     private final double[] _socHistory = new double[RANGE_ESTIMATE_WINDOW_5KM + 1];
     private final double[] _socMinHistory = new double[RANGE_ESTIMATE_WINDOW_5KM + 1];
     private final double[] _socMaxHistory = new double[RANGE_ESTIMATE_WINDOW_5KM + 1];
+    private final double[] _batTempHistory = new double[RANGE_ESTIMATE_WINDOW_5KM + 1];
     private int _socHistoryPosition = 0;
     private int _lastOdo = Integer.MIN_VALUE, _odo;
     private String _vin, _lat, _lon;
@@ -132,7 +131,7 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
     private PrintWriter _logFileWriter;
     private SharedPreferences _preferences;
     private long _sysTimeMs;
-    private long _epoch, _lastEpoch, _lastEpochBatTemp, _lastEpochNotification, _lastEpochSuccessfulApiSend;
+    private long _epoch, _lastEpoch, _lastEpochNotification, _lastEpochSuccessfulApiSend;
     private Button _connectButton;
     private CommunicateViewModel _viewModel;
     private volatile boolean _loopRunning = false;
@@ -306,7 +305,6 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
         }
     }
 
-    @SuppressLint("MissingPermission")
     private void loop() { //CAN messages loop
         _loopRunning = true;
         try {
@@ -327,13 +325,6 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
                 setText(_chargingText, _chargingConnection.getName());
                 setChecked(_isChargingCheckBox, _isCharging);
                 setText(_batTempText, _batTemp + "°C");
-                if (Math.abs(_batTempOld - _batTemp) > 0.09) {
-                    double deltaTemp = _batTemp - _batTempOld;
-                    double deltaTimeMin = (_epoch - _lastEpochBatTemp) / 60.0;
-                    setText(_batTempDeltaText, String.format(Locale.ENGLISH, "%1$.2f K/min", deltaTemp / deltaTimeMin));
-                    _lastEpochBatTemp = _epoch;
-                    _batTempOld = (_batTemp + _batTempOld) / 2;
-                }
                 setText(_odoText, _odo + "km");
 
                 setText(_speedText, _speed + "km/h");
@@ -344,6 +335,16 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
                     setText(_messageText, String.valueOf(_epoch));
                     if (_lastEpochNotification + 10 < _epoch) {
                         _notificationBuilder.setContentText("SoC " + String.valueOf(_soc) + "%");
+                        if (ActivityCompat.checkSelfPermission(this, android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                            // TODO: Consider calling
+                            //    ActivityCompat#requestPermissions
+                            // here to request the missing permissions, and then overriding
+                            //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
+                            //                                          int[] grantResults)
+                            // to handle the case where the user grants the permission. See the documentation
+                            // for ActivityCompat#requestPermissions for more details.
+                            return;
+                        }
                         _notificationManagerCompat.notify(NOTIFICATION_ID, _notificationBuilder.build());
                         _lastEpochNotification = _epoch;
                     }
@@ -428,9 +429,6 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
                         _newMessage++;
                     } else if (messageID.equals(BATTEMP_ID)) {
                         _batTemp = Integer.valueOf(message.substring(410, 414), 16).shortValue() / 10.0;
-                        if(_batTempOld == Double.MIN_VALUE) {
-                            _batTempOld = _batTemp;
-                        }
                         _newMessage++;
                     } else if (messageID.equals(ODO_ID)) {
                         _odo = Integer.parseInt(message.substring(18, 26), 16);
@@ -439,17 +437,21 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
                             _socHistory[_socHistoryPosition] = _soc;
                             _socMinHistory[_socHistoryPosition] = _socMin;
                             _socMaxHistory[_socHistoryPosition] = _socMax;
+                            _batTempHistory[_socHistoryPosition] = _batTemp;
                             _socHistoryPosition = (_socHistoryPosition + 1) % (RANGE_ESTIMATE_WINDOW_5KM + 1);
                             //Should be _socHistoryPosition - RANGE_ESTIMATE_WINDOW
                             //but Java keeps the negative sign
                             double socDelta = _socHistory[(_socHistoryPosition + 1) % (RANGE_ESTIMATE_WINDOW_5KM + 1)] - _soc;
                             double socMinDelta = _socMinHistory[(_socHistoryPosition + 1) % (RANGE_ESTIMATE_WINDOW_5KM + 1)] - _socMin;
                             double socMaxDelta = _socMaxHistory[(_socHistoryPosition + 1) % (RANGE_ESTIMATE_WINDOW_5KM + 1)] - _socMax;
+                            double batTempDelta = _batTempHistory[(_socHistoryPosition + 1) % (RANGE_ESTIMATE_WINDOW_5KM + 1)] - _batTemp;
                             long socRange = Math.round((_soc / socDelta) * RANGE_ESTIMATE_WINDOW_5KM);
                             long socMinRange = Math.round((_socMin / socMinDelta) * RANGE_ESTIMATE_WINDOW_5KM);
                             long socMaxRange = Math.round((_socMax / socMaxDelta) * RANGE_ESTIMATE_WINDOW_5KM);
+                            double batTempChange = Math.round((_batTemp / batTempDelta) * RANGE_ESTIMATE_WINDOW_5KM);
                             if (socRange >= 0 || socMinRange >= 0 || socMaxRange >= 0) {
                                 setText(_rangeText, String.format(Locale.ENGLISH, "%1$03dkm / %2$03dkm / %3$03dkm", socRange, socMinRange, socMaxRange));
+                                setText(_batTempDeltaText, String.format(Locale.ENGLISH, "%1$.2f K/km", batTempChange));
                                 //setText(_rangeText, socRange + "km / " + socMinRange + "km / " + socMaxRange + "km");
                             } else {
                                 setText(_rangeText, "---km / ---km / ---km");
@@ -663,7 +665,7 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
     }
 
     @Override
-    public void onLocationChanged(@NonNull Location location) {
+    public void onLocationChanged(Location location) {
         _speed = Math.round(location.getSpeed() * 36) / 10.0;
         _lat = String.valueOf(location.getLatitude());
         _lon = String.valueOf(location.getLongitude());
