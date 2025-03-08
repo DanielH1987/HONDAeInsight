@@ -444,14 +444,14 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
                             double socDelta = _socHistory[(_socHistoryPosition + 1) % (RANGE_ESTIMATE_WINDOW_5KM + 1)] - _soc;
                             double socMinDelta = _socMinHistory[(_socHistoryPosition + 1) % (RANGE_ESTIMATE_WINDOW_5KM + 1)] - _socMin;
                             double socMaxDelta = _socMaxHistory[(_socHistoryPosition + 1) % (RANGE_ESTIMATE_WINDOW_5KM + 1)] - _socMax;
-                            double batTempDelta = _batTempHistory[(_socHistoryPosition + 1) % (RANGE_ESTIMATE_WINDOW_5KM + 1)] - _batTemp;
+                            double batTempDelta = _batTemp - _batTempHistory[(_socHistoryPosition + 1) % (RANGE_ESTIMATE_WINDOW_5KM + 1)];
                             long socRange = Math.round((_soc / socDelta) * RANGE_ESTIMATE_WINDOW_5KM);
                             long socMinRange = Math.round((_socMin / socMinDelta) * RANGE_ESTIMATE_WINDOW_5KM);
                             long socMaxRange = Math.round((_socMax / socMaxDelta) * RANGE_ESTIMATE_WINDOW_5KM);
-                            double batTempChange = Math.round((_batTemp / batTempDelta) * RANGE_ESTIMATE_WINDOW_5KM);
+                            double batTempChange = batTempDelta / RANGE_ESTIMATE_WINDOW_5KM;
                             if (socRange >= 0 || socMinRange >= 0 || socMaxRange >= 0) {
                                 setText(_rangeText, String.format(Locale.ENGLISH, "%1$03dkm / %2$03dkm / %3$03dkm", socRange, socMinRange, socMaxRange));
-                                setText(_batTempDeltaText, String.format(Locale.ENGLISH, "%1$.2f K/km", batTempChange));
+                                setText(_batTempDeltaText, String.format(Locale.ENGLISH, "%1$.2fK/km", batTempChange));
                                 //setText(_rangeText, socRange + "km / " + socMinRange + "km / " + socMaxRange + "km");
                             } else {
                                 setText(_rangeText, "---km / ---km / ---km");
