@@ -367,7 +367,7 @@
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
                         android:fontFamily="monospace"
-                        android:text="0.00K/km"
+                        android:text="-.--K/km"
                         android:textAlignment="textEnd"
                         android:textAppearance="@style/TextAppearance.AppCompat.Large"
                         android:textStyle="bold" />
