@@ -406,7 +406,7 @@ public class CommunicateActivity extends AppCompatActivity implements LocationLi
                         _newMessage++;
                     } else if (messageID.equals(SOH_ID)) {
                         _soh = Integer.parseInt(message.substring(198, 202), 16) / 100.0;
-                        _amp = Math.round((Integer.valueOf(message.substring(280, 284), 16).shortValue() / 36.0) * 100.0) / 100.0;
+                        _amp = Math.round((Integer.valueOf(message.substring(280, 284), 16).shortValue() / 32.0) * 100.0) / 100.0;
                         _volt = Integer.parseInt(message.substring(76, 80), 16) / 10.0;
                         _power = Math.round(_amp * _volt / 1000.0 * 10.0) / 10.0;
                         _newMessage++;
